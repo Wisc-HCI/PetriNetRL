@@ -79,7 +79,7 @@ class PetriEnv(gymnasium.Env):
         # self.action_space = spaces.MultiDiscrete([2 for _ in self.num_transitions])
         
         # Number of tokens in each place (marking) - vector of places by 1
-        self.observation_space = spaces.Box(low=-255, high=255,
+        self.observation_space = spaces.Box(low=-1, high=sys.maxsize,
                                             shape=(self.num_places, 1,), dtype=np.float64)
 
     def step(self, action):
@@ -100,7 +100,6 @@ class PetriEnv(gymnasium.Env):
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
         for i in range(self.num_transitions):
-            column = np.empty((self.num_places, 1))
             for j in range(self.num_places):
                 if self.marking[j][0] + self.iC[j][i] < 0:
                     valid_actions[i] = False

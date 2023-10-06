@@ -101,7 +101,6 @@ class DeadlockEnv(gymnasium.Env):
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
         for i in range(self.num_transitions):
-            column = np.empty((self.num_places, 1))
             for j in range(self.num_places):
                 if self.marking[j][0] + self.iC[j][i] < 0:
                     valid_actions[i] = False
