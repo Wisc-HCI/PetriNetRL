@@ -1,0 +1,173 @@
+{
+  "id": "967aba9f-876f-40f4-9a2a-82aa2c9fd516",
+  "name": "Job 1",
+  "places": {
+    "a": {
+      "id": "a",
+      "name": "a",
+      "tokens": "infinite",
+      "metaData": [
+        {
+          "type": "target",
+          "value": "6fffa97c-4a9b-4e72-9ae9-f520f3688d57"
+        },
+        {
+          "type": "targetSituated",
+          "value": "6fffa97c-4a9b-4e72-9ae9-f520f3688d57"
+        }
+      ]
+    },
+    "b": {
+      "id": "b",
+      "name": "b",
+      "tokens": "infinite",
+      "metaData": [
+        {
+          "type": "agent",
+          "value": "d6e9006a-2d82-4e5c-9e50-01da2b99186f"
+        },
+        {
+          "type": "agentDiscard",
+          "value": "d6e9006a-2d82-4e5c-9e50-01da2b99186f"
+        }
+      ]
+    },
+    "c": {
+      "id": "c",
+      "name": "c",
+      "tokens": "finite",
+      "metaData": [
+        {
+          "type": "agent",
+          "value": "67d33847-9754-4910-84ec-d3af4992a482"
+        },
+        {
+          "type": "agentDiscard",
+          "value": "67d33847-9754-4910-84ec-d3af4992a482"
+        }
+      ]
+    },
+    "d": {
+      "id": "d",
+      "name": "d",
+      "tokens": "finite",
+      "metaData": [
+        {
+          "type": "target",
+          "value": "7a3cfa78-0037-42d4-b128-316bd3332d45"
+        },
+        {
+          "type": "targetUnplaced",
+          "value": "7a3cfa78-0037-42d4-b128-316bd3332d45"
+        }
+      ]
+    },
+    "e": {
+      "id": "e",
+      "name": "e",
+      "tokens": "finite",
+      "metaData": [
+        {
+          "type": "task",
+          "value": "2767b563-b3a4-48ee-950c-a3508d78e59b"
+        },
+        {
+          "type": "allocatedTask",
+          "value": "2767b563-b3a4-48ee-950c-a3508d78e59b"
+        },
+        {
+          "type": "agentTaskLock",
+          "value": "67d33847-9754-4910-84ec-d3af4992a482"
+        },
+        {
+          "type": "agentTaskLock",
+          "value": "d6e9006a-2d82-4e5c-9e50-01da2b99186f"
+        }
+      ]
+    },
+    "f": {
+      "id": "f",
+      "name": "f",
+      "tokens": "sink",
+      "metaData": [
+        {
+          "type": "agent",
+          "value": "67d33847-9754-4910-84ec-d3af4992a482"
+        },
+        {
+          "type": "agentPresent",
+          "value": "67d33847-9754-4910-84ec-d3af4992a482"
+        }
+      ]
+    }
+  },
+  "transitions": {
+    "t1": {
+      "id": "t1",
+      "name": "t1",
+      "input": {
+        "a": 0
+      },
+      "output": {
+        "c": 1
+      },
+      "metaData": []
+    },
+    "t2": {
+      "id": "t2",
+      "name": "t2",
+      "input": {
+        "b": 0
+      },
+      "output": {
+        "d": 1
+      },
+      "metaData": []
+    },
+    "t3": {
+      "id": "t3",
+      "name": "t3",
+      "input": {
+        "c": 1,
+        "d": 1
+      },
+      "output": {
+        "e": 1
+      },
+      "metaData": []
+    },
+    "t4": {
+      "id": "t4",
+      "name": "t4",
+      "input": {
+        "d": 1,
+        "e": 1
+      },
+      "output": {
+        "f": 1
+      },
+      "metaData": []
+    }
+  },
+  "initial_marking": {
+    "a": 1,
+    "b": 1,
+    "c": 0,
+    "d": 0,
+    "e": 0,
+    "f": 0
+  },
+  "name_lookup": {
+    "771b3f59-cf22-4b44-b885-6b9c12193651": "Part1",
+    "e934d5f9-1d43-4e6f-836d-c08a499eb5cc": "Part6",
+    "0c1ea973-f606-4189-be46-359d7b7b5fc9": "Part2",
+    "67d33847-9754-4910-84ec-d3af4992a482": "Panda",
+    "4d1d2064-0ae1-41bf-8bdd-63339364f33b": "Part4",
+    "7a3cfa78-0037-42d4-b128-316bd3332d45": "Tool0",
+    "9ae5dc0a-4f9f-4c0f-966c-54710bf29063": "task1",
+    "6fffa97c-4a9b-4e72-9ae9-f520f3688d57": "Part3",
+    "2767b563-b3a4-48ee-950c-a3508d78e59b": "task2",
+    "1378a81b-84ae-4841-8714-b545e527a9d7": "Part5",
+    "d6e9006a-2d82-4e5c-9e50-01da2b99186f": "Charlie"
+  }
+}
