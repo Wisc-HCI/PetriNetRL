@@ -79,7 +79,7 @@ class PetriEnv(gymnasium.Env):
         # self.action_space = spaces.MultiDiscrete([2 for _ in self.num_transitions])
         
         # Number of tokens in each place (marking) - vector of places by 1
-        self.observation_space = spaces.Box(low=-1, high=sys.maxsize,
+        self.observation_space = spaces.Box(low=-255, high=255,
                                             shape=(self.num_places, 1,), dtype=np.float64)
 
     def step(self, action):

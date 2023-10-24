@@ -11,6 +11,7 @@ from deadlockenv import DeadlockEnv
 import time
 import json
 
+FILENAME = "agent_net.json"
 
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
@@ -28,7 +29,7 @@ if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 # with open('test_run.json', encoding='utf-8') as fh:
-with open('agent_net.json', encoding='utf-8') as fh:
+with open(FILENAME, encoding='utf-8') as fh:
     json_obj = json.load(fh)
 
 firstEnv = DeadlockEnv(json_obj)
@@ -48,10 +49,10 @@ iters = 0
 while iters < MAX_ITERS:
     iters += 1
     model.learn(total_timesteps=TIMESTEPS)
-model.save(f"{models_dir}/Deadlock-PPO-{iters}")
+model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
 
 # Train on the actual environment after we've learned to avoid deadlock scenarios
-model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-{iters}", secondEnv, verbose=1, tensorboard_log=logdir)
+model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-{iters}", secondEnv, verbose=1, tensorboard_log=logdir)
 TIMESTEPS = 1000
 MAX_ITERS = 100
 iters = 0

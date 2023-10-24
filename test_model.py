@@ -11,6 +11,8 @@ import time
 import json
 
 
+FILENAME = "agent_net.json"
+
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
     # for the current env. In this example, we assume the env has a
@@ -28,7 +30,7 @@ if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 # Load initial network from json
-with open('agent_net.json', encoding='utf-8') as fh:
+with open(FILENAME, encoding='utf-8') as fh:
     json_obj = json.load(fh)
 
 
@@ -67,11 +69,11 @@ while not done:
     obs, rewards, done, shortcut, info = env.step(action)
     cummulative_reward += rewards
     print("transition:", env.transition_names[action])
-    print("reward", rewards)
-    print("cumulative reward", cummulative_reward)
-    print("resulting observation:")
-    for i, row in enumerate(obs):
-        print(env.place_names[i], "\t", row[0])
+    # print("reward", rewards)
+    # print("cumulative reward", cummulative_reward)
+    # print("resulting observation:")
+    # for i, row in enumerate(obs):
+    #     print(env.place_names[i], "\t", row[0])
     print('---------')
     if iteration > max_iters or done:
         done = True
