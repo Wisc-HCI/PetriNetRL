@@ -51,6 +51,9 @@ class PetriEnv(gymnasium.Env):
         # Output incedence
         self.oC = np.empty((self.num_places, self.num_transitions))
 
+        # Matrix is sparse, so we can leverage that for the action masking
+        self.non_zeros = []
+
         for row, place in enumerate(json_obj["places"]):
             for col, key in enumerate(json_obj["transitions"]):
                 transition = json_obj["transitions"][key]
@@ -67,6 +70,8 @@ class PetriEnv(gymnasium.Env):
                     deltaO += transition["output"][place]["value"]
 
                 self.C[row][col] = delta
+                if delta != 0:
+                    self.non_zeros.append((row, col))
                 self.iC[row][col] = deltaI
                 self.oC[row][col] = deltaO
 
@@ -99,8 +104,16 @@ class PetriEnv(gymnasium.Env):
 
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
-        for i in range(self.num_transitions):
-            for j in range(self.num_places):
-                if self.marking[j][0] + self.iC[j][i] < 0:
-                    valid_actions[i] = False
+        # for i in range(self.num_transitions):
+        #     for j in range(self.num_places):
+        #         if not valid_actions[i]:
+        #             continue
+        #         if self.marking[j][0] + self.iC[j][i] < 0:
+        #             valid_actions[i] = False
+        # return valid_actions
+        for (j, i) in self.non_zeros:
+            if not valid_actions[i]:
+                continue
+            if self.marking[j][0] + self.iC[j][i] < 0:
+                valid_actions[i] = False
         return valid_actions
