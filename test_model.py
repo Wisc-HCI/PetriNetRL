@@ -11,7 +11,7 @@ import time
 import json
 
 
-FILENAME = "agent_net.json"
+FILENAME = "poi_net.json"
 
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
@@ -77,6 +77,11 @@ while not done:
     print('---------')
     if iteration > max_iters or done:
         done = True
+        print("reward", rewards)
+        print("cumulative reward", cummulative_reward)
+        print("resulting observation:")
+        for i, row in enumerate(obs):
+            print(env.place_names[i], "\t", row[0])
         print("Ending due to iteration cap or done flag")
         print("iteration", iteration, "Max", max_iters)
     #     print("cumulative reward", cummulative_reward)

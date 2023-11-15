@@ -10,8 +10,17 @@ from petrienv import PetriEnv
 from deadlockenv import DeadlockEnv
 import time
 import json
+from datetime import datetime
 
-FILENAME = "agent_net.json"
+# Rectify the numpy versions
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+
+DEADLOCK_TRAINING = False
+FILENAME = "poi_net.json"
+
+start = datetime.now()
 
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
@@ -43,21 +52,27 @@ secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
 
 # Train on the deadlock environment first
 model = MaskablePPO(MaskableActorCriticPolicy, firstEnv)
-TIMESTEPS = 1000
-MAX_ITERS = 20
-iters = 0
-while iters < MAX_ITERS:
-    iters += 1
-    model.learn(total_timesteps=TIMESTEPS)
-model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
+if DEADLOCK_TRAINING:
+    TIMESTEPS = 1000
+    MAX_ITERS = 100
+    iters = 0
+    while iters < MAX_ITERS:
+        iters += 1
+        model.learn(total_timesteps=TIMESTEPS)
+    model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
+    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-{iters}", secondEnv, verbose=1, tensorboard_log=logdir)
+else:
+    model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir)
+    # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
 
 # Train on the actual environment after we've learned to avoid deadlock scenarios
-model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-{iters}", secondEnv, verbose=1, tensorboard_log=logdir)
-TIMESTEPS = 1000
-MAX_ITERS = 100
+TIMESTEPS = 10000
+MAX_ITERS = 10
 iters = 0
 while iters < MAX_ITERS:
     iters += 1
     model.learn(total_timesteps=TIMESTEPS)
     if iters % 5 == 0:
         model.save(f"{models_dir}/Deadlock-PPO-{iters}")
+
+print("TOTAL TIME: {0}".format(datetime.now() - start))
