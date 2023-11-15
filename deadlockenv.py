@@ -22,7 +22,7 @@ class DeadlockEnv(gymnasium.Env):
                 self.initial_marking[i][0] = sys.maxsize
             else:
                 try:
-                    self.initial_marking[i][0] = json_obj["initial_marking"][place]
+                    self.initial_marking[i][0] = json_obj["initialMarking"][place]
                 except:
                     self.initial_marking[i][0] = 0
 
@@ -33,6 +33,8 @@ class DeadlockEnv(gymnasium.Env):
         self.iC = np.empty((self.num_places, self.num_transitions))
         # Output incedence
         self.oC = np.empty((self.num_places, self.num_transitions))
+        # Matrix is sparse, so we can leverage that for the action masking
+        self.non_zeros = []
 
         for row, place in enumerate(json_obj["places"]):
             for col, key in enumerate(json_obj["transitions"]):
@@ -50,6 +52,8 @@ class DeadlockEnv(gymnasium.Env):
                     deltaO += transition["output"][place]["value"]
 
                 self.C[row][col] = delta
+                if deltaI < 0:
+                    self.non_zeros.append((row, col))
                 self.iC[row][col] = deltaI
                 self.oC[row][col] = deltaO
 
@@ -100,8 +104,9 @@ class DeadlockEnv(gymnasium.Env):
 
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
-        for i in range(self.num_transitions):
-            for j in range(self.num_places):
-                if self.marking[j][0] + self.iC[j][i] < 0:
-                    valid_actions[i] = False
+        for (j, i) in self.non_zeros:
+            if not valid_actions[i]:
+                continue
+            if self.marking[j][0] + self.iC[j][i] < 0:
+                valid_actions[i] = False
         return valid_actions

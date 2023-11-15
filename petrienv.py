@@ -39,7 +39,7 @@ class PetriEnv(gymnasium.Env):
                 self.initial_marking[i][0] = sys.maxsize
             else:
                 try:
-                    self.initial_marking[i][0] = json_obj["initial_marking"][place]
+                    self.initial_marking[i][0] = json_obj["initialMarking"][place]
                 except:
                     self.initial_marking[i][0] = 0
 
@@ -70,7 +70,7 @@ class PetriEnv(gymnasium.Env):
                     deltaO += transition["output"][place]["value"]
 
                 self.C[row][col] = delta
-                if delta != 0:
+                if deltaI < 0:
                     self.non_zeros.append((row, col))
                 self.iC[row][col] = deltaI
                 self.oC[row][col] = deltaO
