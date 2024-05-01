@@ -32,8 +32,8 @@ class PetriEnv(gymnasium.Env):
         self.transition_names = []
         self.transition_times = []
         for i in json_obj["transitions"]:
-            self.transition_names = json_obj["transitions"][i]["name"]
-            self.transition_times = json_obj["transitions"][i]["time"]
+            self.transition_names.append(json_obj["transitions"][i]["name"])
+            self.transition_times.append(json_obj["transitions"][i]["time"])
 
         # Build cost array - ordered as [OneTime, Extrapolated]
         # TODO: will need to check type and alpha, balancing between ERGO and ECON

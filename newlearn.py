@@ -17,7 +17,7 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 
-DEADLOCK_TRAINING = False
+DEADLOCK_TRAINING = True
 FILENAME = "cost_net.json"
 
 start = datetime.now()
@@ -51,10 +51,10 @@ secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
 
 
 # Train on the deadlock environment first
-model = MaskablePPO(MaskableActorCriticPolicy, firstEnv)
+model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir)
 if DEADLOCK_TRAINING:
     TIMESTEPS = 1000
-    MAX_ITERS = 100
+    MAX_ITERS = 10
     iters = 0
     while iters < MAX_ITERS:
         iters += 1
@@ -67,7 +67,7 @@ else:
 
 # Train on the actual environment after we've learned to avoid deadlock scenarios
 TIMESTEPS = 10000
-MAX_ITERS = 100
+MAX_ITERS = 10
 iters = 0
 while iters < MAX_ITERS:
     iters += 1

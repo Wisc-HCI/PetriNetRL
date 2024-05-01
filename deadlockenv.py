@@ -72,8 +72,7 @@ class DeadlockEnv(gymnasium.Env):
             for place in json_obj["transitions"][transition]["input"]:
                 if not is_rest_action:
                     continue
-                if place not in json_obj["transitions"][transition]["output"] or
-                    json_obj["transitions"][transition]["input"][place]["value"] != json_obj["transitions"][transition]["output"][place]["value"]:
+                if place not in json_obj["transitions"][transition]["output"] or json_obj["transitions"][transition]["input"][place]["value"] != json_obj["transitions"][transition]["output"][place]["value"]:
                     is_rest_action = False
 
             if is_rest_action:
