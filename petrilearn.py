@@ -14,7 +14,7 @@ if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 # with open('test_run.json', encoding='utf-8') as fh:
-with open('agent_net.json', encoding='utf-8') as fh:
+with open('cost_net.json', encoding='utf-8') as fh:
     json_obj = json.load(fh)
 
 env = PetriEnv(json_obj)

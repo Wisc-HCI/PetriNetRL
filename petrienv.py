@@ -3,6 +3,11 @@ import gymnasium
 from gymnasium import spaces
 import numpy as np
 
+ONE_TIME_KEY = "once"
+EXTRAPOLATED_KEY = "extrapolated"
+ONE_TIME_INDEX = 0
+EXTRAPOLATED_INDEX = 1
+
 def is_goal(marking, goal_state):
     places = np.where(goal_state == 1)[0]
     for i in places:
@@ -10,27 +15,39 @@ def is_goal(marking, goal_state):
             return False
     return True
 
-def reward_value(previous_state, new_state, goal_state):
-    if np.array_equal(new_state, previous_state):
-        return 0.0
-    elif np.any(new_state < 0.0):
-        return -1000.0
-    elif is_goal(new_state, goal_state):
-        return 100.0
-    else:
-        return -0.1
-	
 class PetriEnv(gymnasium.Env):
-    """Custom Environment that follows gym interface"""
+    """Environment for learning the collaborative task"""
 
     def __init__(self, json_obj):
         super(PetriEnv, self).__init__()
 
+        self.json_obj = json_obj
         self.num_places = len(json_obj["places"])
         self.num_transitions = len(json_obj["transitions"])
+        self.available_workers = []
+        self.busy_workers = []
+        self.timers = []
 
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
-        self.transition_names = [json_obj["transitions"][i]["name"] for i in json_obj["transitions"]]
+        self.transition_names = []
+        self.transition_times = []
+        for i in json_obj["transitions"]:
+            self.transition_names = json_obj["transitions"][i]["name"]
+            self.transition_times = json_obj["transitions"][i]["time"]
+
+        # Build cost array - ordered as [OneTime, Extrapolated]
+        # TODO: will need to check type and alpha, balancing between ERGO and ECON
+        self.transition_costs = [[0, 0] for _ in range(self.num_transitions)]
+        for i, transition in enumerate(json_obj["transitions"]):
+            one_time_cost = 0
+            extrapolated_cost = 0
+            for c in json_obj["transitions"][transition]["cost"]:
+                if c["frequency"] == ONE_TIME_KEY:
+                    one_time_cost -= c["value"]
+                else:
+                    extrapolated_cost -= c["value"]
+            self.transition_costs[i] = [one_time_cost, extrapolated_cost]
+
 
         self.initial_marking = np.empty((self.num_places, 1))
         self.goal_state = np.empty((self.num_places, 1))
@@ -87,12 +104,24 @@ class PetriEnv(gymnasium.Env):
         self.observation_space = spaces.Box(low=-255, high=255,
                                             shape=(self.num_places, 1,), dtype=np.float64)
 
+    # State reward function
+    def reward_value(self, action, previous_state, new_state, goal_state):
+        # Reward is given by the cost of executing the transition
+        reward = self.transition_costs[action][EXTRAPOLATED_INDEX]
+        # Add incentive to avoid bad/infeasible states
+        if np.any(new_state < 0.0):
+            reward += -100000.0
+        # Add incentive for the goal state
+        elif is_goal(new_state, goal_state):
+            reward += 10000.0
+        return reward
+
     def step(self, action):
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
         self.previous_state = self.marking.copy()
         self.marking = self.marking + np.dot(self.C, a)
         
-        tmp_rwd = reward_value(self.previous_state, self.marking, self.goal_state)
+        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state)
 
         return self.marking, tmp_rwd, is_goal(self.marking, self.goal_state), False, {}
 
@@ -104,16 +133,10 @@ class PetriEnv(gymnasium.Env):
 
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
-        # for i in range(self.num_transitions):
-        #     for j in range(self.num_places):
-        #         if not valid_actions[i]:
-        #             continue
-        #         if self.marking[j][0] + self.iC[j][i] < 0:
-        #             valid_actions[i] = False
-        # return valid_actions
         for (j, i) in self.non_zeros:
             if not valid_actions[i]:
                 continue
+            # Mark any transitions that would cause an invalid state (value < 0) as invalid
             if self.marking[j][0] + self.iC[j][i] < 0:
                 valid_actions[i] = False
         return valid_actions

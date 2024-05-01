@@ -18,7 +18,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 
 DEADLOCK_TRAINING = False
-FILENAME = "poi_net.json"
+FILENAME = "cost_net.json"
 
 start = datetime.now()
 
@@ -67,7 +67,7 @@ else:
 
 # Train on the actual environment after we've learned to avoid deadlock scenarios
 TIMESTEPS = 10000
-MAX_ITERS = 10
+MAX_ITERS = 100
 iters = 0
 while iters < MAX_ITERS:
     iters += 1
