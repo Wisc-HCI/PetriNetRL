@@ -25,13 +25,18 @@ class PetriEnv(gymnasium.Env):
         self.num_places = len(json_obj["places"])
         self.num_transitions = len(json_obj["transitions"])
         self.available_workers = []
+
+        self.all_agents = []
         self.busy_workers = []
-        self.timers = []
+        self.agent_transitions = {}
+        self.current_time = 0
 
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
         self.transition_names = []
         self.transition_times = []
+        self.transition_ids = []
         for i in json_obj["transitions"]:
+            self.transition_ids.append(i)
             self.transition_names.append(json_obj["transitions"][i]["name"])
             self.transition_times.append(json_obj["transitions"][i]["time"])
 
@@ -47,6 +52,18 @@ class PetriEnv(gymnasium.Env):
                 else:
                     extrapolated_cost -= c["value"]
             self.transition_costs[i] = [one_time_cost, extrapolated_cost]
+
+     
+            # Build network of all transitions relevant to specific agents
+            for data in json_obj["transitions"][transition]["metaData"]:
+                if data["type"] == "agent":
+                    if data["value"] not in self.all_agents:
+                        self.all_agents.append(data["value"])
+
+                    try:
+                        self.agent_transitions[data["value"]].append(i)
+                    except:
+                        self.agent_transitions[data["value"]] = [i]
 
 
         self.initial_marking = np.empty((self.num_places, 1))
@@ -119,8 +136,27 @@ class PetriEnv(gymnasium.Env):
     def step(self, action):
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
         self.previous_state = self.marking.copy()
-        self.marking = self.marking + np.dot(self.C, a)
+        self.marking = self.marking + np.dot(self.iC, a)
+
+        transition = self.json_obj["transitions"][self.transition_ids[action]]
+        for data in transition["metaData"]:
+            if data["type"] == "agent":
+                self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
         
+        # determine whether to move time forward or not
+        if len(self.busy_workers) == len(self.all_agents):
+            new_time = min(list(map(lambda pair: pair[1], self.busy_workers)))
+            new_busy_workers = []
+            for (worker, time, action_vec) in self.busy_workers:
+                if time <= new_time:
+                    self.marking = self.marking + np.dot(self.oC, action_vec)
+                else:
+                    new_busy_workers.append((worker, time, action_vec))
+            self.busy_workers = new_busy_workers
+            # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
+            self.current_time = new_time
+
+
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state)
 
         return self.marking, tmp_rwd, is_goal(self.marking, self.goal_state), False, {}
@@ -133,6 +169,12 @@ class PetriEnv(gymnasium.Env):
 
     def valid_action_mask(self):
         valid_actions = [True for _ in range(self.num_transitions)]
+
+        # If worker is busy, they can't perform any new actions, so mark those actions as false
+        for (worker_id, _time, _action) in self.busy_workers:
+            for transition_index in self.agent_transitions[worker_id]:
+                valid_actions[transition_index] = False
+
         for (j, i) in self.non_zeros:
             if not valid_actions[i]:
                 continue

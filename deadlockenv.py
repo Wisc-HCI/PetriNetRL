@@ -68,16 +68,14 @@ class DeadlockEnv(gymnasium.Env):
 
         # iterate over transitions and see which ones are "rest" actions
         for i, transition in enumerate(json_obj["transitions"]):
-            is_rest_action = True
-            for place in json_obj["transitions"][transition]["input"]:
-                if not is_rest_action:
+            shortcut = False
+            for data in json_obj["transitions"][transition]["metaData"]:
+                if shortcut:
                     continue
-                if place not in json_obj["transitions"][transition]["output"] or json_obj["transitions"][transition]["input"][place]["value"] != json_obj["transitions"][transition]["output"][place]["value"]:
-                    is_rest_action = False
-
-            if is_rest_action:
-                # Add transition to rest list so we can mark it invalid in mask
-                self.base_mask[i] = False
+                if data["type"] == "rest":
+                    # Add transition to rest list so we can mark it invalid in mask
+                    self.base_mask[i] = False
+                    shortcut = True
 
 
         # 1 action each timestep
