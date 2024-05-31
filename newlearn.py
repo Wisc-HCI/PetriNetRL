@@ -11,14 +11,11 @@ from deadlockenv import DeadlockEnv
 import time
 import json
 from datetime import datetime
+from constants import *
 
 # Rectify the numpy versions
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
-
-DEADLOCK_TRAINING = True
-FILENAME = "cost_net.json"
 
 start = datetime.now()
 
@@ -51,28 +48,27 @@ secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
 
 
 # Train on the deadlock environment first
-model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir)
+model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir, device="cuda")
 if DEADLOCK_TRAINING:
-    TIMESTEPS = 1000
-    MAX_ITERS = 1
     iters = 0
-    while iters < MAX_ITERS:
+    while iters < MAX_DEADLOCK_ITERATIONS:
         iters += 1
-        model.learn(total_timesteps=TIMESTEPS)
-    model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
-    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-{iters}", secondEnv, verbose=1, tensorboard_log=logdir)
+        model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
+        if iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
+            model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
+    # After training, save and load the model to change environments for the next round of training
+    model.save(f"{models_dir}/Deadlock-PPO-deadlock-final")
+    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="cuda")
 else:
-    model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir)
+    model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="cuda")
     # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
 
 # Train on the actual environment after we've learned to avoid deadlock scenarios
-TIMESTEPS = 10000
-MAX_ITERS = 1
 iters = 0
-while iters < MAX_ITERS:
+while iters < MAX_PPO_ITERATIONS:
     iters += 1
-    model.learn(total_timesteps=TIMESTEPS)
-    if iters % 5 == 0:
+    model.learn(total_timesteps=PPO_TIMESTEPS)
+    if iters % PPO_ITERATION_SAVE_INTERVAL == 0:
         model.save(f"{models_dir}/Deadlock-PPO-{iters}")
 
 print("TOTAL TIME: {0}".format(datetime.now() - start))

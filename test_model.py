@@ -20,16 +20,6 @@ def mask_fn(env: gym.Env) -> np.ndarray:
     # helpful method we can rely on.
     return env.valid_action_mask()
 
-models_dir = f"models/PPO/"
-logdir = f"logs/"
-
-# Create directories if not existant
-if not os.path.exists(models_dir):
-	os.makedirs(models_dir)
-
-if not os.path.exists(logdir):
-	os.makedirs(logdir)
-
 # Load initial network from json
 with open(FILENAME, encoding='utf-8') as fh:
     json_obj = json.load(fh)
@@ -41,7 +31,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-10.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-50.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
