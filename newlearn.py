@@ -41,6 +41,20 @@ with open(FILENAME, encoding='utf-8') as fh:
 firstEnv = DeadlockEnv(json_obj)
 secondEnv = PetriEnv(json_obj)
 
+# testEnv = firstEnv
+# print(testEnv.num_transitions)
+# # print(firstEnv.transition_names.index("ae82b9e5-f79d-48a5-ac2e-ab4fbecbc419"))
+# print(testEnv.transition_names.index("Locate/Place Part: Stabilizer Bolts"))
+# print("")
+
+# action = 546
+# a = np.asarray([[0 if action != j else 1] for j in range(testEnv.num_transitions)])
+# marking = testEnv.marking + np.dot(testEnv.C, a)
+
+# for i, row in enumerate(marking):
+#     print(testEnv.place_names[i], "\t", row[0])
+# exit(1)
+
 firstEnv.reset(0, {})
 secondEnv.reset(0, {})
 firstEnv = ActionMasker(firstEnv, mask_fn)  # Wrap to enable masking
@@ -49,6 +63,7 @@ secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
 
 # Train on the deadlock environment first
 model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir, device="cuda")
+
 if DEADLOCK_TRAINING:
     iters = 0
     while iters < MAX_DEADLOCK_ITERATIONS:
@@ -63,12 +78,13 @@ else:
     model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="cuda")
     # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
 
-# Train on the actual environment after we've learned to avoid deadlock scenarios
-iters = 0
-while iters < MAX_PPO_ITERATIONS:
-    iters += 1
-    model.learn(total_timesteps=PPO_TIMESTEPS)
-    if iters % PPO_ITERATION_SAVE_INTERVAL == 0:
-        model.save(f"{models_dir}/Deadlock-PPO-{iters}")
+if PPO_TRANING:
+    # Train on the actual environment after we've learned to avoid deadlock scenarios
+    iters = 0
+    while iters < MAX_PPO_ITERATIONS:
+        iters += 1
+        model.learn(total_timesteps=PPO_TIMESTEPS)
+        if iters % PPO_ITERATION_SAVE_INTERVAL == 0:
+            model.save(f"{models_dir}/Deadlock-PPO-{iters}")
 
 print("TOTAL TIME: {0}".format(datetime.now() - start))

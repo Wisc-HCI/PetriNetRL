@@ -6,9 +6,10 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
 import os
 from petrienv import PetriEnv
-# from deadlockenv import DeadlockEnv
+from deadlockenv import DeadlockEnv
 import time
 import json
+from constants import *
 
 
 FILENAME = "cost_net.json"
@@ -31,7 +32,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-50.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-deadlock-1.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -49,7 +50,6 @@ print('---------')
 
 cummulative_reward = 0.0
 iteration = 0
-max_iters = 10000
 action_sequence = []
 while not done:
     iteration += 1
@@ -67,7 +67,7 @@ while not done:
     # for i, row in enumerate(obs):
     #     print(env.place_names[i], "\t", row[0])
     # print('---------')
-    if iteration > max_iters or done:
+    if iteration >= MAX_TESTING_TIMESTEPS or done:
         done = True
         # print(action_sequence)
         print("reward", rewards)
@@ -76,7 +76,7 @@ while not done:
         for i, row in enumerate(obs):
             print(env.place_names[i], "\t", row[0])
         print("Ending due to iteration cap or done flag")
-        print("iteration", iteration, "Max", max_iters)
+        print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
     #     print("cumulative reward", cummulative_reward)
 
     

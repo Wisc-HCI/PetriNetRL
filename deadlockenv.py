@@ -2,6 +2,7 @@ import gymnasium
 from gymnasium import spaces
 import numpy as np
 import sys
+from constants import *
 
 def is_goal(marking, goal_state):
     places = np.where(goal_state == 1)[0]
@@ -38,8 +39,6 @@ class DeadlockEnv(gymnasium.Env):
         self.C = np.empty((self.num_places, self.num_transitions))
         # Input incedence
         self.iC = np.empty((self.num_places, self.num_transitions))
-        # Output incedence
-        self.oC = np.empty((self.num_places, self.num_transitions))
         # Matrix is sparse, so we can leverage that for the action masking
         self.non_zeros = []
         # For deadlock, we want to avoid "rest" actions - transitions that input and output are the same
@@ -50,7 +49,6 @@ class DeadlockEnv(gymnasium.Env):
                 transition = json_obj["transitions"][key]
                 delta = 0
                 deltaI = 0
-                deltaO = 0
 
                 if (place in list(transition["input"])):
                     delta -= transition["input"][place]["value"]
@@ -58,13 +56,11 @@ class DeadlockEnv(gymnasium.Env):
 
                 if (place in list(transition["output"])):
                     delta += transition["output"][place]["value"]
-                    deltaO += transition["output"][place]["value"]
 
                 self.C[row][col] = delta
                 if deltaI < 0:
                     self.non_zeros.append((row, col))
                 self.iC[row][col] = deltaI
-                self.oC[row][col] = deltaO
 
         # iterate over transitions and see which ones are "rest" actions
         for i, transition in enumerate(json_obj["transitions"]):
@@ -77,6 +73,7 @@ class DeadlockEnv(gymnasium.Env):
                     self.base_mask[i] = False
                     shortcut = True
 
+        self.marking = self.initial_marking.copy()
 
         # 1 action each timestep
         self.action_space = spaces.Discrete(self.num_transitions)
@@ -95,14 +92,13 @@ class DeadlockEnv(gymnasium.Env):
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
         
         # Update the marking
-        self.previous_state = self.marking.copy()
         self.marking = self.marking + np.dot(self.C, a)
 
         # Determine reward
-        tmp_rwd = self.get_reward(self.marking)
+        tmp_rwd = self.get_reward(self.marking.copy())
         done = tmp_rwd < 0 or is_goal(self.marking, self.goal_state)
 
-        return self.marking, tmp_rwd, done, False, {}
+        return self.marking.copy(), tmp_rwd, done, False, {}
 
     def reset(self, seed=0, options={}):
         self.done = False
@@ -110,15 +106,11 @@ class DeadlockEnv(gymnasium.Env):
         return self.marking, {}  # reward, done, info can't be included
 
     def get_reward(self, newMarking):
-        valid_actions = [True for _ in range(self.num_transitions)]
         for i in range(self.num_transitions):
             column = np.empty((self.num_places, 1))
             for j in range(self.num_places):
-                if newMarking[j][0] + self.iC[j][i] < 0:
-                    valid_actions[i] = False
-        
-        if any(valid_actions):
-            return 0.0
+                if newMarking[j][0] + self.iC[j][i] >= 0:
+                    return 0.0
 
         # No valid actions, so this is a bad state to be in
         return -99.0
@@ -132,3 +124,13 @@ class DeadlockEnv(gymnasium.Env):
             if self.marking[j][0] + self.iC[j][i] < 0:
                 valid_actions[i] = False
         return valid_actions
+
+if __name__ == "__main__":
+    deadlock_env_id = 'wiscHCI/DeadlockEnv-v0'
+
+    gymnasium.envs.registration.register(
+        id=deadlock_env_id,
+        entry_point=DeadlockEnv,
+        max_episode_steps=MAX_DEADLOCK_ITERATIONS,
+        reward_threshold=500 # TODO: No clue what value to use here...
+    )

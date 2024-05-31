@@ -88,6 +88,8 @@ class PetriEnv(gymnasium.Env):
         # Matrix is sparse, so we can leverage that for the action masking
         self.non_zeros = []
 
+        self.marking = self.initial_marking.copy()
+
         for row, place in enumerate(json_obj["places"]):
             for col, key in enumerate(json_obj["transitions"]):
                 transition = json_obj["transitions"][key]
@@ -140,7 +142,15 @@ class PetriEnv(gymnasium.Env):
 
         transition = self.json_obj["transitions"][self.transition_ids[action]]
         for data in transition["metaData"]:
-            if data["type"] == "agent":
+            if data["type"] == "agentAgnostic":
+                # TODO: agentAgnostic..... <------
+                # figure out who is free, select one, add them to busy worker
+                # really only matters if time is > 0
+                if transition["time"] > 0:
+                    self.busy_workers.append(("", self.current_time + transition["time"], a.copy()))
+                else:
+                    self.busy_workers.append(("", self.current_time + transition["time"], a.copy()))
+            elif data["type"] == "agent":
                 self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
         
         # determine whether to move time forward or not
