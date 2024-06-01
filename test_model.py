@@ -10,10 +10,27 @@ from deadlockenv import DeadlockEnv
 import time
 import json
 from constants import *
+import csv
 
+def is_sim_type(transition):
+    for obj in transition["metaData"]:
+        if obj["type"] == "simulation":
+            return "Simulation"
+    return "Setup"
 
-FILENAME = "cost_net.json"
-OUTPUT = "result.txt"
+def ergo_costs(transition):
+    costs = [0] * 4
+    for obj in transition["metaData"]:
+        if obj["type"] == "ergoHand":
+            costs[0] += obj["value"][1]
+        if obj["type"] == "ergoArm":
+            costs[1] += obj["value"][1]
+        if obj["type"] == "ergoShoulder":
+            costs[2] += obj["value"][1]
+        if obj["type"] == "ergoWholeBody":
+            costs[3] += obj["value"][1]
+
+    return costs
 
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
@@ -32,7 +49,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-28.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-10.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -60,7 +77,7 @@ while not done:
     obs, rewards, done, shortcut, info = env.step(action)
     cummulative_reward += rewards
     # print("transition:", env.transition_names[action])
-    action_sequence.append(env.transition_names[action])
+    action_sequence.append((env.transition_ids[action], action))
     # print("reward", rewards)
     # print("cumulative reward", cummulative_reward)
     # print("resulting observation:")
@@ -79,8 +96,17 @@ while not done:
         print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
     #     print("cumulative reward", cummulative_reward)
 
-    
-with open(OUTPUT, "w") as fh:
-    for r in action_sequence:
-        fh.write(r)
-        fh.write("\n")
+
+with open(OUTPUT, "w+", newline='') as fh:
+    csv_writer = csv.writer(fh)
+    csv_writer.writerow(["Action", "Type", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost"])
+
+    for (transition_id, action) in action_sequence:
+        transition = json_obj["transitions"][transition_id]
+        costs = ergo_costs(transition)
+        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), costs[0], costs[1], costs[2], costs[3]])
+
+# with open(OUTPUT, "w") as fh:
+#     for r in action_sequence:
+#         fh.write(r)
+#         fh.write("\n")

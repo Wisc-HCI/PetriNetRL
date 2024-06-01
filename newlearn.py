@@ -25,9 +25,6 @@ def mask_fn(env: gym.Env) -> np.ndarray:
     # helpful method we can rely on.
     return env.valid_action_mask()
 
-models_dir = f"models/Deadlock-PPO/"
-logdir = f"logs/"
-
 if not os.path.exists(models_dir):
 	os.makedirs(models_dir)
 
