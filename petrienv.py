@@ -2,11 +2,7 @@ import sys
 import gymnasium
 from gymnasium import spaces
 import numpy as np
-
-ONE_TIME_KEY = "once"
-EXTRAPOLATED_KEY = "extrapolated"
-ONE_TIME_INDEX = 0
-EXTRAPOLATED_INDEX = 1
+from constants import *
 
 def is_goal(marking, goal_state):
     places = np.where(goal_state == 1)[0]

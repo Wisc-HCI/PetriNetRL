@@ -41,28 +41,13 @@ with open(FILENAME, encoding='utf-8') as fh:
 firstEnv = DeadlockEnv(json_obj)
 secondEnv = PetriEnv(json_obj)
 
-# testEnv = firstEnv
-# print(testEnv.num_transitions)
-# # print(firstEnv.transition_names.index("ae82b9e5-f79d-48a5-ac2e-ab4fbecbc419"))
-# print(testEnv.transition_names.index("Locate/Place Part: Stabilizer Bolts"))
-# print("")
-
-# action = 546
-# a = np.asarray([[0 if action != j else 1] for j in range(testEnv.num_transitions)])
-# marking = testEnv.marking + np.dot(testEnv.C, a)
-
-# for i, row in enumerate(marking):
-#     print(testEnv.place_names[i], "\t", row[0])
-# exit(1)
-
 firstEnv.reset(0, {})
 secondEnv.reset(0, {})
 firstEnv = ActionMasker(firstEnv, mask_fn)  # Wrap to enable masking
 secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
 
-
 # Train on the deadlock environment first
-model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir, device="cuda")
+model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir, device="auto")
 
 if DEADLOCK_TRAINING:
     iters = 0
@@ -73,9 +58,9 @@ if DEADLOCK_TRAINING:
             model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
     # After training, save and load the model to change environments for the next round of training
     model.save(f"{models_dir}/Deadlock-PPO-deadlock-final")
-    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="cuda")
+    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
 else:
-    model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="cuda")
+    model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
     # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
 
 if PPO_TRANING:
