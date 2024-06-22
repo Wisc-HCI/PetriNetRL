@@ -18,8 +18,8 @@ def is_sim_type(transition):
             return "Simulation"
     return "Setup"
 
-def ergo_costs(transition):
-    costs = [0] * 4
+def find_costs(transition):
+    costs = [0] * 5
     for obj in transition["metaData"]:
         if obj["type"] == "ergoHand":
             costs[0] += obj["value"][1]
@@ -29,6 +29,9 @@ def ergo_costs(transition):
             costs[2] += obj["value"][1]
         if obj["type"] == "ergoWholeBody":
             costs[3] += obj["value"][1]
+    for obj in transition["cost"]:
+        if obj["category"] == "monetary":
+            costs[4] += obj["value"]
 
     return costs
 
@@ -49,7 +52,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-10.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-20.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -59,6 +62,13 @@ obs, info = env.reset()
 # obs, info = env.reset(0)
 
 done = False
+
+def is_goal(marking, goal_state):
+    places = np.where(goal_state == 1)[0]
+    for i in places:
+        if marking[i][0] < 1:
+            return False
+    return True
 
 print("intial observation:")
 for i, row in enumerate(obs):
@@ -86,12 +96,13 @@ while not done:
     # print('---------')
     if iteration >= MAX_TESTING_TIMESTEPS or done:
         done = True
-        # print(action_sequence)
+        print(action_sequence)
         print("reward", rewards)
         print("cumulative reward", cummulative_reward)
-        print("resulting observation:")
-        for i, row in enumerate(obs):
-            print(env.place_names[i], "\t", row[0])
+        # print("resulting observation:")
+        # for i, row in enumerate(obs):
+        #     print(env.place_names[i], "\t", row[0])
+        print("is goal met? + {0}".format(is_goal(obs, env.goal_state)))
         print("Ending due to iteration cap or done flag")
         print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
     #     print("cumulative reward", cummulative_reward)
@@ -99,14 +110,11 @@ while not done:
 
 with open(OUTPUT, "w+", newline='') as fh:
     csv_writer = csv.writer(fh)
-    csv_writer.writerow(["Action", "Type", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost"])
+    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time", "End Time", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost"])
 
     for (transition_id, action) in action_sequence:
         transition = json_obj["transitions"][transition_id]
-        costs = ergo_costs(transition)
-        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), costs[0], costs[1], costs[2], costs[3]])
-
-# with open(OUTPUT, "w") as fh:
-#     for r in action_sequence:
-#         fh.write(r)
-#         fh.write("\n")
+        costs = find_costs(transition)
+        duration = transition["time"]
+        # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
+        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", 0, duration, costs[0], costs[1], costs[2], costs[3], costs[4]])

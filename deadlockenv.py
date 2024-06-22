@@ -23,6 +23,11 @@ class DeadlockEnv(gymnasium.Env):
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
         self.transition_names = [json_obj["transitions"][i]["name"] for i in json_obj["transitions"]]
 
+        self.discard_places = []
+        for i in json_obj["places"]:
+            if "🗑️" in json_obj["places"][i]["name"]:
+                self.discard_places.append(self.place_names.index(json_obj["places"][i]["name"]))
+
         self.initial_marking = np.empty((self.num_places, 1))
         self.goal_state = np.empty((self.num_places, 1))
         for i, place in enumerate(json_obj["places"]):
@@ -106,6 +111,14 @@ class DeadlockEnv(gymnasium.Env):
         return self.marking, {}  # reward, done, info can't be included
 
     def get_reward(self, newMarking):
+        allAgentsDiscarded = True
+        for i in self.discard_places:
+            if allAgentsDiscarded and newMarking[i][0] > 0:
+                allAgentsDiscarded = False
+        
+        if allAgentsDiscarded:
+            return -99999.0
+
         for i in range(self.num_transitions):
             column = np.empty((self.num_places, 1))
             for j in range(self.num_places):
@@ -113,7 +126,7 @@ class DeadlockEnv(gymnasium.Env):
                     return 0.0
 
         # No valid actions, so this is a bad state to be in
-        return -99.0
+        return -99999.0
 
     def valid_action_mask(self):
         valid_actions = self.base_mask.copy()
