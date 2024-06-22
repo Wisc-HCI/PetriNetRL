@@ -39,6 +39,7 @@ class PetriEnv(gymnasium.Env):
         # Build cost array - ordered as [OneTime, Extrapolated]
         # TODO: will need to check type and alpha, balancing between ERGO and ECON
         self.transition_costs = [[0, 0] for _ in range(self.num_transitions)]
+        self.used_one_time_cost = [False for _ in range(self.num_transitions)]
         for i, transition in enumerate(json_obj["transitions"]):
             one_time_cost = 0
             extrapolated_cost = 0
@@ -48,7 +49,6 @@ class PetriEnv(gymnasium.Env):
                 else:
                     extrapolated_cost -= c["value"]
             self.transition_costs[i] = [one_time_cost, extrapolated_cost]
-
      
             # Build network of all transitions relevant to specific agents
             for data in json_obj["transitions"][transition]["metaData"]:
@@ -123,12 +123,18 @@ class PetriEnv(gymnasium.Env):
     def reward_value(self, action, previous_state, new_state, goal_state):
         # Reward is given by the cost of executing the transition
         reward = self.transition_costs[action][EXTRAPOLATED_INDEX]
+        if not self.used_one_time_cost[action]:
+            reward += self.transition_costs[action][ONE_TIME_INDEX]
+            self.used_one_time_cost[action] = True
         # Add incentive to avoid bad/infeasible states
         if np.any(new_state < 0.0):
             reward += -100000.0
         # Add incentive for the goal state
         elif is_goal(new_state, goal_state):
             reward += 10000.0
+        # cost to explore
+        # elif reward == 0:
+        reward -= 0.1
         return reward
 
     def step(self, action):
