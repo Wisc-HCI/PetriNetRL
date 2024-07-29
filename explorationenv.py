@@ -27,7 +27,7 @@ class ExplorationEnv(gymnasium.Env):
         for i in json_obj["places"]:
             if "🗑️" in json_obj["places"][i]["name"]:
                 self.discard_places.append(self.place_names.index(json_obj["places"][i]["name"]))
-    
+
         self.initial_marking = np.empty((self.num_places, 1))
         self.goal_state = np.empty((self.num_places, 1))
         for i, place in enumerate(json_obj["places"]):
@@ -48,6 +48,9 @@ class ExplorationEnv(gymnasium.Env):
         self.non_zeros = []
         # For deadlock, we want to avoid "rest" actions - transitions that input and output are the same
         self.base_mask = [True for _ in range(self.num_transitions)]
+        # Tracking whether "first time reward" can be applied for this transition
+        # I am basing this off of "making progress" in the collaboration - i.e. they produce an intermediate part / use a target
+        self.first_time_reward_for_transition = [False for _ in range(self.num_transitions)]
 
         for row, place in enumerate(json_obj["places"]):
             for col, key in enumerate(json_obj["transitions"]):
@@ -66,6 +69,18 @@ class ExplorationEnv(gymnasium.Env):
                 if deltaI < 0:
                     self.non_zeros.append((row, col))
                 self.iC[row][col] = deltaI
+
+        # iterate over transitions and find all target actions that aren't related to setup or spawning
+        for i, place in enumerate(json_obj["transitions"]):
+            has_target = False
+            more_targets = False
+            for data in json_obj["transitions"][place]["metaData"]:
+                if "target" in data["type"] and data["type"] != "target":
+                    more_targets = True
+                if data["type"] == "target":
+                    has_target = True
+            if (not more_targets) and has_target:
+                self.first_time_reward_for_transition[i] = True
 
         self.marking = self.initial_marking.copy()
 
@@ -89,14 +104,18 @@ class ExplorationEnv(gymnasium.Env):
         self.marking = self.marking + np.dot(self.C, a)
 
         # Determine reward
-        agents_discarded = self.are_agents_discarded(self.marking.copy())
+        tmp_rwd = self.get_reward(self.marking.copy())
         goal_reached = is_goal(self.marking, self.goal_state)
-        tmp_rwd = self.get_reward(self.marking.copy(), agents_discarded)
+
+        if tmp_rwd >= 0 and self.first_time_reward_for_transition[action]:
+            self.first_time_reward_for_transition[action] = False
+            # Small incentive to progress to goal
+            tmp_rwd += 100
+
         # high reward for goal
         if goal_reached:
             tmp_rwd += 100000
-        done = tmp_rwd < 0 or goal_reached or agents_discarded
-
+        done = tmp_rwd < 0 or goal_reached
 
         return self.marking.copy(), tmp_rwd, done, False, {}
 
@@ -104,18 +123,17 @@ class ExplorationEnv(gymnasium.Env):
         self.done = False
         self.marking = self.initial_marking.copy()
         return self.marking, {}  # reward, done, info can't be included
-    
-    def are_agents_discarded(self, newMarking):
-        for i in self.discard_places:
-            if newMarking[i][0] == 0:
-                return False
-        return True
 
-    def get_reward(self, newMarking, agentsDiscarded):
-        if agentsDiscarded:
+    def get_reward(self, newMarking):
+        allAgentsDiscarded = True
+        for i in self.discard_places:
+            # Check if the agent discard location is empty (if so, agent hasn't been discarded)
+            if allAgentsDiscarded and newMarking[i][0] == 0:
+                allAgentsDiscarded = False
+        
+        if allAgentsDiscarded:
             return -99999.0
 
-        # If there is an available action, we don't care what action they took, so reward 1
         for i in range(self.num_transitions):
             for j in range(self.num_places):
                 if newMarking[j][0] + self.iC[j][i] >= 0:
@@ -135,11 +153,11 @@ class ExplorationEnv(gymnasium.Env):
         return valid_actions
 
 if __name__ == "__main__":
-    exploration_env_id = 'wiscHCI/ExplorationEnv-v0'
+    deadlock_env_id = 'wiscHCI/DeadlockEnv-v0'
 
     gymnasium.envs.registration.register(
-        id=exploration_env_id,
-        entry_point=ExplorationEnv,
-        max_episode_steps=MAX_EXPLORATION_ITERATIONS,
+        id=deadlock_env_id,
+        entry_point=DeadlockEnv,
+        max_episode_steps=MAX_DEADLOCK_ITERATIONS,
         reward_threshold=500 # TODO: No clue what value to use here...
     )

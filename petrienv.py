@@ -120,7 +120,7 @@ class PetriEnv(gymnasium.Env):
                                             shape=(self.num_places, 1,), dtype=np.float64)
 
     # State reward function
-    def reward_value(self, action, previous_state, new_state, goal_state):
+    def reward_value(self, action, previous_state, new_state, goal_state, current_time):
         # Reward is given by the cost of executing the transition
         reward = self.transition_costs[action][EXTRAPOLATED_INDEX]
         if not self.used_one_time_cost[action]:
@@ -134,6 +134,7 @@ class PetriEnv(gymnasium.Env):
             reward += 10000.0
         # cost to explore
         # elif reward == 0:
+        #     reward -= 0.1 * current_time
         reward -= 0.1
         return reward
 
@@ -169,7 +170,7 @@ class PetriEnv(gymnasium.Env):
             self.current_time = new_time
 
 
-        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state)
+        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time)
 
         return self.marking, tmp_rwd, is_goal(self.marking, self.goal_state), False, {}
 
@@ -193,4 +194,6 @@ class PetriEnv(gymnasium.Env):
             # Mark any transitions that would cause an invalid state (value < 0) as invalid
             if self.marking[j][0] + self.iC[j][i] < 0:
                 valid_actions[i] = False
+            # elif "Rest" in self.transition_names[i]:
+            #     valid_actions[i] = False
         return valid_actions

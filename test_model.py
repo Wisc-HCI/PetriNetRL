@@ -6,6 +6,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
 import os
 from petrienv import PetriEnv
+from explorationenv import ExplorationEnv
 from deadlockenv import DeadlockEnv
 import time
 import json
@@ -48,11 +49,12 @@ with open(FILENAME, encoding='utf-8') as fh:
 # Setup model and environment
 env = PetriEnv(json_obj)
 # env = DeadlockEnv(json_obj)
+# env = ExplorationEnv(json_obj)
 
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-20.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-5.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -96,7 +98,7 @@ while not done:
     # print('---------')
     if iteration >= MAX_TESTING_TIMESTEPS or done:
         done = True
-        print(action_sequence)
+        # print(action_sequence)
         print("reward", rewards)
         print("cumulative reward", cummulative_reward)
         # print("resulting observation:")

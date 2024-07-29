@@ -118,14 +118,14 @@ class DeadlockEnv(gymnasium.Env):
         tmp_rwd = self.get_reward(self.marking.copy())
         goal_reached = is_goal(self.marking, self.goal_state)
 
-        if tmp_rwd >= 0 and self.first_time_reward_for_transition[action]:
-            self.first_time_reward_for_transition[action] = False
-            # Small incentive to progress to goal
-            tmp_rwd += 100
+        # if tmp_rwd >= 0 and self.first_time_reward_for_transition[action]:
+        #     self.first_time_reward_for_transition[action] = False
+        #     # Small incentive to progress to goal
+        #     tmp_rwd += 100
 
         # high reward for goal
-        if goal_reached:
-            tmp_rwd += 100000
+        # if goal_reached:
+        #     tmp_rwd += 100000
         done = tmp_rwd < 0 or goal_reached
 
         return self.marking.copy(), tmp_rwd, done, False, {}
@@ -145,6 +145,7 @@ class DeadlockEnv(gymnasium.Env):
         if allAgentsDiscarded:
             return -99999.0
 
+        # Any possible actions?
         for i in range(self.num_transitions):
             for j in range(self.num_places):
                 if newMarking[j][0] + self.iC[j][i] >= 0:
