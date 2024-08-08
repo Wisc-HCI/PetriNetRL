@@ -54,7 +54,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-5.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-ppo-final.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -110,13 +110,15 @@ while not done:
     #     print("cumulative reward", cummulative_reward)
 
 
+currentTime = 0
 with open(OUTPUT, "w+", newline='') as fh:
     csv_writer = csv.writer(fh)
-    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time", "End Time", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost"])
+    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost"])
 
     for (transition_id, action) in action_sequence:
         transition = json_obj["transitions"][transition_id]
         costs = find_costs(transition)
         duration = transition["time"]
         # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
-        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", 0, duration, costs[0], costs[1], costs[2], costs[3], costs[4]])
+        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4]])
+        currentTime += duration
