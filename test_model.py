@@ -54,7 +54,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-ppo-final.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-exploration-final.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -113,12 +113,32 @@ while not done:
 currentTime = 0
 with open(OUTPUT, "w+", newline='') as fh:
     csv_writer = csv.writer(fh)
-    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost"])
+    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
 
     for (transition_id, action) in action_sequence:
         transition = json_obj["transitions"][transition_id]
         costs = find_costs(transition)
         duration = transition["time"]
+        primtives = ""
+        mvcs = ""
+        isOneHanded = ""
+        standDistanceTraveled = ""
+        handDistanceTraveled = ""
+        a = 0
+        for m in transition["metaData"]:
+            if m["type"] == "primitiveAssignment":
+                try:
+                    primtives += json_obj["nameLookup"][m["value"][1]] + ";"
+                except:
+                    a = 1
+            elif m["type"] == "isOneHanded":
+                isOneHanded += "True" if m["value"][1] else "False" + ";"
+            elif m["type"] == "mVC":
+                mvcs += str(m["value"][1]) + ";"
+            elif m["type"] == "handTravelDistance":
+                handDistanceTraveled += str(m["value"][1]) + ";"
+            elif m["type"] == "standTravelDistance":
+                standDistanceTraveled += str(m["value"][1]) + ";"
         # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
-        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4]])
+        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded])
         currentTime += duration
