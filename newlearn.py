@@ -56,18 +56,20 @@ if DEADLOCK_TRAINING:
         iters += 1
         model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
         if iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
-            model.save(f"{models_dir}/Deadlock-PPO-deadlock-{iters}")
+            model.save(f"{models_dir}/Deadlock-{iters}")
     # After training, save and load the model to change environments for the next round of training
-    model.save(f"{models_dir}/Deadlock-PPO-deadlock-final")
+    model.save(f"{models_dir}/Deadlock-final")
     if EXPLORATION_TRAINING:
-        model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        model = MaskablePPO.load(f"{models_dir}/Deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
     else:
-        model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        model = MaskablePPO.load(f"{models_dir}/Deadlock-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
 else:
-    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
+    model = MaskablePPO.load(f"{models_dir}/Deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
 
     # model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
     # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
+
+deadlock_time = datetime.now()
 
 if EXPLORATION_TRAINING:
     iters = 0
@@ -75,12 +77,14 @@ if EXPLORATION_TRAINING:
         iters += 1
         model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
         if iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
-            model.save(f"{models_dir}/Deadlock-PPO-exploration-{iters}")
+            model.save(f"{models_dir}/Exploration-{iters}")
     # After training, save and load the model to change environments for the next round of training
-    model.save(f"{models_dir}/Deadlock-PPO-exploration-final")
-    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-exploration-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
+    model.save(f"{models_dir}/Exploration-final")
+    model = MaskablePPO.load(f"{models_dir}/Exploration-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
 elif not DEADLOCK_TRAINING:
-    model = MaskablePPO.load(f"{models_dir}/Deadlock-PPO-10", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
+    model = MaskablePPO.load(f"{models_dir}/Deadlock-10", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
+
+exploration_time = datetime.now()
 
 if PPO_TRANING:
     # Train on the actual environment after we've learned to avoid deadlock scenarios
@@ -89,7 +93,12 @@ if PPO_TRANING:
         iters += 1
         model.learn(total_timesteps=PPO_TIMESTEPS)
         if iters % PPO_ITERATION_SAVE_INTERVAL == 0:
-            model.save(f"{models_dir}/Deadlock-PPO-{iters}")
-    model.save(f"{models_dir}/Deadlock-PPO-ppo-final")
+            model.save(f"{models_dir}/PPO-{iters}")
+    model.save(f"{models_dir}/PPO-final")
 
+ppo_time = datetime.now()
+
+print("Deadlock TIME: {0}".format(deadlock_time - start))
+print("Exploration TIME: {0}".format(exploration_time - deadlock_time))
+print("PPO TIME: {0}".format(ppo_time - exploration_time))
 print("TOTAL TIME: {0}".format(datetime.now() - start))

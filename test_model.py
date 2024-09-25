@@ -54,7 +54,7 @@ env = PetriEnv(json_obj)
 # Mask
 env.reset(0, {})
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-model = MaskablePPO.load("models/Deadlock-PPO/Deadlock-PPO-exploration-final.zip")
+model = MaskablePPO.load("models/Deadlock-PPO/Exploration-30.zip")
 # model = MaskablePPO.load("models/PPO/PPO-50.zip")
 obs, info = env.reset()
 
@@ -113,7 +113,7 @@ while not done:
 currentTime = 0
 with open(OUTPUT, "w+", newline='') as fh:
     csv_writer = csv.writer(fh)
-    csv_writer.writerow(["Action", "Type", "Agent Assigned", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
+    csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
 
     for (transition_id, action) in action_sequence:
         transition = json_obj["transitions"][transition_id]
@@ -125,6 +125,10 @@ with open(OUTPUT, "w+", newline='') as fh:
         standDistanceTraveled = ""
         handDistanceTraveled = ""
         a = 0
+        fromHandLocation = ""
+        toHandLocation = ""
+        fromStandLocation = ""
+        toStandLocation = ""
         for m in transition["metaData"]:
             if m["type"] == "primitiveAssignment":
                 try:
@@ -139,6 +143,20 @@ with open(OUTPUT, "w+", newline='') as fh:
                 handDistanceTraveled += str(m["value"][1]) + ";"
             elif m["type"] == "standTravelDistance":
                 standDistanceTraveled += str(m["value"][1]) + ";"
+            elif m["type"] == "standing":
+                fromStandLocation = json_obj["nameLookup"][m["value"][0]]
+                toStandLocation = fromStandLocation
+            elif m["type"] == "hand":
+                fromHandLocation = json_obj["nameLookup"][m["value"][0]]
+                toHandLocation = fromHandLocation
+            elif m["type"] == "fromHandPOI":
+                fromHandLocation = json_obj["nameLookup"][m["value"][0]]
+            elif m["type"] == "toHandPOI":
+                toHandLocation = json_obj["nameLookup"][m["value"][0]]
+            elif m["type"] == "fromStandingPOI":
+                fromStandLocation = json_obj["nameLookup"][m["value"][0]]
+            elif m["type"] == "toStandingPOI":
+                toStandLocation = json_obj["nameLookup"][m["value"][0]]
         # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
-        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded])
+        csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", fromStandLocation, toStandLocation, fromHandLocation, toHandLocation, currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded])
         currentTime += duration

@@ -22,6 +22,10 @@ class ExplorationEnv(gymnasium.Env):
 
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
         self.transition_names = [json_obj["transitions"][i]["name"] for i in json_obj["transitions"]]
+        
+        self.transition_ids = []
+        for i in json_obj["transitions"]:
+            self.transition_ids.append(i)
 
         self.discard_places = []
         for i in json_obj["places"]:
