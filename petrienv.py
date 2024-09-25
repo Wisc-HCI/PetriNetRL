@@ -3,6 +3,7 @@ import gymnasium
 from gymnasium import spaces
 import numpy as np
 from constants import *
+import random
 
 def is_goal(marking, goal_state):
     places = np.where(goal_state == 1)[0]
@@ -142,19 +143,6 @@ class PetriEnv(gymnasium.Env):
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
         self.previous_state = self.marking.copy()
         self.marking = self.marking + np.dot(self.iC, a)
-
-        transition = self.json_obj["transitions"][self.transition_ids[action]]
-        for data in transition["metaData"]:
-            if data["type"] == "agentAgnostic":
-                # TODO: agentAgnostic..... <------
-                # figure out who is free, select one, add them to busy worker
-                # really only matters if time is > 0
-                if transition["time"] > 0:
-                    self.busy_workers.append(("", self.current_time + transition["time"], a.copy()))
-                else:
-                    self.busy_workers.append(("", self.current_time + transition["time"], a.copy()))
-            elif data["type"] == "agent":
-                self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
         
         # determine whether to move time forward or not
         if len(self.busy_workers) == len(self.all_agents):
@@ -168,6 +156,35 @@ class PetriEnv(gymnasium.Env):
             self.busy_workers = new_busy_workers
             # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
             self.current_time = new_time
+
+        # at least one worker should now be free since we moved time forward
+
+        transition = self.json_obj["transitions"][self.transition_ids[action]]
+        for data in transition["metaData"]:
+            if data["type"] == "agentAgnostic":
+                # TODO: agentAgnostic..... <------
+                # figure out who is free, select one, add them to busy worker
+                # really only matters if time is > 0
+                available_workers = []
+
+                for agent in self.all_agents:
+                    available = True
+                    for (worker, _time, _action) in self.busy_workers:
+                        if not available:
+                            continue
+                        if worker == agent:
+                            available = False
+                    if available:
+                        available_workers.append(agent)
+
+                # need a better selection method
+                selected_worker = random.choice(available_workers)
+                if transition["time"] > 0:
+                    self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
+                else:
+                    self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
+            elif data["type"] == "agent":
+                self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
 
 
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time)

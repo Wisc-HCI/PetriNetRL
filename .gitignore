@@ -7,8 +7,8 @@ __pycache__/
 *.so
 
 # Ignore Updates to this file, due to real testing
-cost_new.json
-output.csv
+*.json
+*.csv
 
 models/
 logs/
