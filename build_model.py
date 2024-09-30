@@ -6,7 +6,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
 import os
-from petrienv import PetriEnv
+from fullcostenv import FullCostEnv
 from deadlockenv import DeadlockEnv
 from explorationenv import ExplorationEnv
 import time
@@ -20,92 +20,115 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def run(filename):
+    # Get a start time to judge each phase's runtime
     start = datetime.now()
 
+
+    # Masking function, call the environment's masking function
     def mask_fn(env: gym.Env) -> np.ndarray:
-        # Do whatever you'd like in this function to return the action mask
-        # for the current env. In this example, we assume the env has a
-        # helpful method we can rely on.
         return env.valid_action_mask()
 
+    # Verify the model output directory exists
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
 
+    # Verify the log output directory exists
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-    # with open('test_run.json', encoding='utf-8') as fh:
-    f = FILENAME
+    # Determine which input json file to use 
+    f = FILENAME # default "cost_net.json"
     if filename is not None:
         f = filename
+    # Load petrinet data from json (transitions, places)
     with open(f, encoding='utf-8') as fh:
         json_obj = json.load(fh)
 
-    firstEnv = DeadlockEnv(json_obj)
-    secondEnv = ExplorationEnv(json_obj)
-    thirdEnv = PetriEnv(json_obj)
+    # Determine naming scheme for model output
+    outputFilename = f.replace(".json", "")
 
+    # Create the 3 training environments
+    deadlockTrainingEnv = DeadlockEnv(json_obj)
+    explorationTrainingEnv = ExplorationEnv(json_obj)
+    fullCostTrainingEnv = FullCostEnv(json_obj)
 
-    firstEnv.reset(0, {})
-    secondEnv.reset(0, {})
-    firstEnv = ActionMasker(firstEnv, mask_fn)  # Wrap to enable masking
-    secondEnv = ActionMasker(secondEnv, mask_fn)  # Wrap to enable masking
-    thirdEnv = ActionMasker(thirdEnv, mask_fn)  # Wrap to enable masking
+    # Reset and mask each environment
+    deadlockTrainingEnv.reset(0, {})
+    explorationTrainingEnv.reset(0, {})
+    deadlockTrainingEnv = ActionMasker(deadlockTrainingEnv, mask_fn)  # Wrap to enable masking
+    explorationTrainingEnv = ActionMasker(explorationTrainingEnv, mask_fn)  # Wrap to enable masking
+    fullCostTrainingEnv = ActionMasker(fullCostTrainingEnv, mask_fn)  # Wrap to enable masking
 
-    # Train on the deadlock environment first
-    model = MaskablePPO(MaskableActorCriticPolicy, firstEnv, verbose=1, tensorboard_log=logdir, device="auto")
+    # Set model to first (deadlock) environment
+    model = MaskablePPO(MaskableActorCriticPolicy, deadlockTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
 
+    # Check if deadlock training is active
     if DEADLOCK_TRAINING:
+        # Train model in the deadlock environment
         iters = 0
         while iters < MAX_DEADLOCK_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
             if iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
-                model.save(f"{models_dir}/Deadlock-{iters}")
+                model.save(f"{models_dir}/{outputFilename}-deadlock-{iters}")
+
         # After training, save and load the model to change environments for the next round of training
         model.save(f"{models_dir}/Deadlock-final")
+
+        # If the next phase is exploration, load the model for the second environment, otherwise the third (full-cost environment)
         if EXPLORATION_TRAINING:
-            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
+            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
         else:
-            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
+            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
     else:
-        model = MaskablePPO.load(f"{models_dir}/Deadlock-5", secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        # Assign some base to start from
+        # TODO: swap this to a check for prior base or just starting in explorationTrainingEnv with no base
+        model = MaskablePPO.load(f"{models_dir}/Deadlock-5", explorationTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
 
-        # model = MaskablePPO(MaskableActorCriticPolicy, secondEnv, verbose=1, tensorboard_log=logdir, device="auto")
-        # model = PPO('MlpPolicy', secondEnv, verbose=1, tensorboard_log=logdir)
-
+    # Get ending time of the deadlock training
     deadlock_time = datetime.now()
 
+    # Determine if exploration training is active
     if EXPLORATION_TRAINING:
+        # Train model in the exploration environment
         iters = 0
         while iters < MAX_EXPLORATION_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
             if iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
-                model.save(f"{models_dir}/Exploration-{iters}")
+                model.save(f"{models_dir}/{outputFilename}-exploration-{iters}")
+
         # After training, save and load the model to change environments for the next round of training
         model.save(f"{models_dir}/Exploration-final")
-        model = MaskablePPO.load(f"{models_dir}/Exploration-final", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
-    elif not DEADLOCK_TRAINING:
-        model = MaskablePPO.load(f"{models_dir}/Deadlock-10", thirdEnv, verbose=1, tensorboard_log=logdir, device="auto")
 
+        # Load model for the third environment (full-cost environment)
+        model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+    elif not DEADLOCK_TRAINING:
+        # If deadlock training was not active (and exploration training isn't active) load some base model
+        # TODO: swap this to a check for prior base or just starting in fullCostTrainingEnv with no base
+        model = MaskablePPO.load(f"{models_dir}/Deadlock-10", fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+
+    # Get ending time of the exploration training
     exploration_time = datetime.now()
 
-    if PPO_TRANING:
+    # Check if third environment training is active
+    if FULL_COST_TRAINING:
         # Train on the actual environment after we've learned to avoid deadlock scenarios
         iters = 0
-        while iters < MAX_PPO_ITERATIONS:
+        while iters < MAX_FULL_COST_ITERATIONS:
             iters += 1
-            model.learn(total_timesteps=PPO_TIMESTEPS)
-            if iters % PPO_ITERATION_SAVE_INTERVAL == 0:
-                model.save(f"{models_dir}/PPO-{iters}")
-        model.save(f"{models_dir}/PPO-final")
+            model.learn(total_timesteps=FULL_COST_TIMESTEPS)
+            if iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
+                model.save(f"{models_dir}/{outputFilename}-full-cost-{iters}")
+        model.save(f"{models_dir}/Full-Cost-final")
 
+    # Get ending time of the full-cost training
     ppo_time = datetime.now()
 
+    # Print out times
     print("Deadlock TIME: {0}".format(deadlock_time - start))
     print("Exploration TIME: {0}".format(exploration_time - deadlock_time))
-    print("PPO TIME: {0}".format(ppo_time - exploration_time))
+    print("Full-Cost TIME: {0}".format(ppo_time - exploration_time))
     print("TOTAL TIME: {0}".format(datetime.now() - start))
 
 

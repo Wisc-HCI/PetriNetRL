@@ -5,7 +5,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
 import os
-from petrienv import PetriEnv
+from fullcostenv import FullCostEnv
 from explorationenv import ExplorationEnv
 from deadlockenv import DeadlockEnv
 import time
@@ -14,12 +14,14 @@ from constants import *
 import csv
 import argparse
 
+# Inspect transition metadata to determine interaction phase type (setup or simulation)
 def is_sim_type(transition):
     for obj in transition["metaData"]:
         if obj["type"] == "simulation":
             return "Simulation"
     return "Setup"
 
+# Inspect transition metadata to determine ergonomic and monetary costs
 def find_costs(transition):
     costs = [0] * 5
     for obj in transition["metaData"]:
@@ -37,86 +39,76 @@ def find_costs(transition):
 
     return costs
 
+# Masking function, call the environment's masking function
 def mask_fn(env: gym.Env) -> np.ndarray:
-    # Do whatever you'd like in this function to return the action mask
-    # for the current env. In this example, we assume the env has a
-    # helpful method we can rely on.
     return env.valid_action_mask()
 
 
-def run(filename):
-    f = FILENAME
-    if filename is not None:
-        f = filename
-    # Load initial network from json
+def run(arguments):
+    # Determine which input json file to use 
+    f = FILENAME # default "cost_net.json"
+    if arguments.file is not None:
+        f = arguments.file
+    # Load petrinet data from json (transitions, places)
     with open(f, encoding='utf-8') as fh:
         json_obj = json.load(fh)
 
-    # Setup model and environment
-    # env = PetriEnv(json_obj)
+    # Setup evaluation environment
+    # env = FullCostEnv(json_obj)
     # env = DeadlockEnv(json_obj)
     env = ExplorationEnv(json_obj)
 
-    # Mask
+    # Reset and mask environment
     env.reset(0, {})
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-    model = MaskablePPO.load("models/Deadlock-PPO/Exploration-final.zip")
-    # model = MaskablePPO.load("models/PPO/PPO-50.zip")
-    obs, info = env.reset()
 
-    # Non-Mask
-    # env.reset(0)
-    # model = PPO.load("models/1696260194/PPO-1.zip")
-    # obs, info = env.reset(0)
+    # Load model for evaluation
+    model = None
+    if arguments.model is not None:
+        model = MaskablePPO.load(arguments.model)
+    else:
+        model = MaskablePPO.load("models/PetriNet-PPO/Exploration-final.zip")
+
+    # Reset environment and get initial observation
+    obs, info = env.reset()
 
     done = False
 
-    def is_goal(marking, goal_state):
-        places = np.where(goal_state == 1)[0]
-        for i in places:
-            if marking[i][0] < 1:
-                return False
-        return True
-
-    print("intial observation:")
-    for i, row in enumerate(obs):
-        print(env.place_names[i], "\t", row[0])
-    print('---------')
-
+    # Setup tracking
     cummulative_reward = 0.0
     iteration = 0
     action_sequence = []
+
+    # Iterate until model finds the goal(s) or max timesteps are hit
     while not done:
+        # Increase iteration count
         iteration += 1
-        # Mask
+        
+        # Determine best action from current state
         action, _states = model.predict(obs, action_masks=mask_fn(env))
-        # Non-Mask
-        # action, _states = model.predict(obs)
+        
+        # Step the model based on selected action
         obs, rewards, done, shortcut, info = env.step(action)
+
+        # Update rewards
         cummulative_reward += rewards
-        # print("transition:", env.transition_names[action])
+        
+        # Add selected action to sequence
         action_sequence.append((env.transition_ids[action], action))
-        # print("reward", rewards)
-        # print("cumulative reward", cummulative_reward)
-        # print("resulting observation:")
-        # for i, row in enumerate(obs):
-        #     print(env.place_names[i], "\t", row[0])
-        # print('---------')
+        
+        # If goal(s) are met or max timesteps are reached, mark as done and print
         if iteration >= MAX_TESTING_TIMESTEPS or done:
             done = True
-            # print(action_sequence)
             print("reward", rewards)
             print("cumulative reward", cummulative_reward)
-            # print("resulting observation:")
-            # for i, row in enumerate(obs):
-            #     print(env.place_names[i], "\t", row[0])
-            print("is goal met? + {0}".format(is_goal(obs, env.goal_state)))
+            print("is goal met? + {0}".format(IS_GOAL(obs, env.goal_state)))
             print("Ending due to iteration cap or done flag")
             print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
-        #     print("cumulative reward", cummulative_reward)
 
 
     currentTime = 0
+
+    # Write output to CSV
     with open(OUTPUT, "w+", newline='') as fh:
         csv_writer = csv.writer(fh)
         csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
@@ -135,6 +127,8 @@ def run(filename):
             toHandLocation = ""
             fromStandLocation = ""
             toStandLocation = ""
+            
+            # Iterate over transition metadata to extract information for CSV output
             for m in transition["metaData"]:
                 if m["type"] == "primitiveAssignment":
                     try:
@@ -163,6 +157,7 @@ def run(filename):
                     fromStandLocation = json_obj["nameLookup"][m["value"][0]]
                 elif m["type"] == "toStandingPOI":
                     toStandLocation = json_obj["nameLookup"][m["value"][0]]
+
             # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
             csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", fromStandLocation, toStandLocation, fromHandLocation, toHandLocation, currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded])
             currentTime += duration
@@ -172,6 +167,7 @@ def run(filename):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", type=str, default=None, help="")
+    parser.add_argument("--model", type=str, default=None, help="")
     args = parser.parse_args()
 
-    run(args.file)
+    run(args)
