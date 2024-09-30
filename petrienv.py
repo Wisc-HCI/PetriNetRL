@@ -143,21 +143,6 @@ class PetriEnv(gymnasium.Env):
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
         self.previous_state = self.marking.copy()
         self.marking = self.marking + np.dot(self.iC, a)
-        
-        # determine whether to move time forward or not
-        if len(self.busy_workers) == len(self.all_agents):
-            new_time = min(list(map(lambda pair: pair[1], self.busy_workers)))
-            new_busy_workers = []
-            for (worker, time, action_vec) in self.busy_workers:
-                if time <= new_time:
-                    self.marking = self.marking + np.dot(self.oC, action_vec)
-                else:
-                    new_busy_workers.append((worker, time, action_vec))
-            self.busy_workers = new_busy_workers
-            # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
-            self.current_time = new_time
-
-        # at least one worker should now be free since we moved time forward
 
         transition = self.json_obj["transitions"][self.transition_ids[action]]
         for data in transition["metaData"]:
@@ -185,6 +170,22 @@ class PetriEnv(gymnasium.Env):
                     self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
             elif data["type"] == "agent":
                 self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
+
+        
+        # determine whether to move time forward or not
+        if len(self.busy_workers) == len(self.all_agents):
+            new_time = min(list(map(lambda pair: pair[1], self.busy_workers)))
+            new_busy_workers = []
+            for (worker, time, action_vec) in self.busy_workers:
+                if time <= new_time:
+                    self.marking = self.marking + np.dot(self.oC, action_vec)
+                else:
+                    new_busy_workers.append((worker, time, action_vec))
+            self.busy_workers = new_busy_workers
+            # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
+            self.current_time = new_time
+
+        # at least one worker should now be free since we moved time forward
 
 
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time)
