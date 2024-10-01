@@ -4,13 +4,11 @@ from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
-import os
 from fullcostenv import FullCostEnv
 from explorationenv import ExplorationEnv
 from deadlockenv import DeadlockEnv
-import time
-import json
 from constants import *
+from utils import *
 import csv
 import argparse
 
@@ -47,15 +45,20 @@ def mask_fn(env: gym.Env) -> np.ndarray:
 def run(arguments):
     # Determine which input json file to use 
     f = FILENAME # default "cost_net.json"
-    if arguments.file is not None:
-        f = arguments.file
+    if arguments.inputfile is not None:
+        f = arguments.inputfile
+    
+    # Determine naming scheme for model output
+    outputFilename = f.replace(".json", "") + "-output.csv"
+    if arguments.output is not None:
+        outputFilename = arguments.output
+
     # Load petrinet data from json (transitions, places)
-    with open(f, encoding='utf-8') as fh:
-        json_obj = json.load(fh)
+    [json_obj, weights] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    # env = FullCostEnv(json_obj)
-    # env = DeadlockEnv(json_obj)
+    # env = FullCostEnv(json_obj, weights)
+    # TODO: (remove) Temporary, testing environment
     env = ExplorationEnv(json_obj)
 
     # Reset and mask environment
@@ -70,7 +73,7 @@ def run(arguments):
         model = MaskablePPO.load("models/PetriNet-PPO/Exploration-final.zip")
 
     # Reset environment and get initial observation
-    obs, info = env.reset()
+    obs, _info = env.reset()
 
     done = False
 
@@ -109,7 +112,7 @@ def run(arguments):
     currentTime = 0
 
     # Write output to CSV
-    with open(OUTPUT, "w+", newline='') as fh:
+    with open(outputFilename, "w+", newline='') as fh:
         csv_writer = csv.writer(fh)
         csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
 
@@ -166,8 +169,9 @@ def run(arguments):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--file", type=str, default=None, help="")
+    parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
+    parser.add_argument("--output", type=str, default=None, help="")
     args = parser.parse_args()
 
     run(args)

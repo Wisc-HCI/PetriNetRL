@@ -3,15 +3,18 @@ import gymnasium
 from gymnasium import spaces
 import numpy as np
 from constants import *
+from utils import *
 import random
 
 class FullCostEnv(gymnasium.Env):
     """Environment for learning the collaborative task"""
 
-    def __init__(self, json_obj):
+    def __init__(self, json_obj, weights):
         super(FullCostEnv, self).__init__()
 
         self.json_obj = json_obj
+
+        self.weights = weights
         
         # Get the number of places and transitions in the petri net
         self.num_places = len(json_obj["places"])

@@ -3,6 +3,7 @@ from gymnasium import spaces
 import numpy as np
 import sys
 from constants import *
+from utils import *
 	
 class ExplorationEnv(gymnasium.Env):
     """Environment for exploring the petrinet. Actions in this environment are free, penalizing for deadlocks and invalid states, and rewarded for finding the goal state and making progress towards it"""

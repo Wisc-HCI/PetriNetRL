@@ -3,6 +3,7 @@ from gymnasium import spaces
 import numpy as np
 import sys
 from constants import *
+from utils import *
 	
 class DeadlockEnv(gymnasium.Env):
     """Environment for learning to avoid deadlock situations within the petrinet"""
