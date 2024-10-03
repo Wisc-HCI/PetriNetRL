@@ -96,25 +96,31 @@ def run(arguments):
         while iters < MAX_DEADLOCK_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
-            if DEADLOCK_ITERATION_SAVE_INTERVAL > -1 and iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
+            if not arguments.chtc and DEADLOCK_ITERATION_SAVE_INTERVAL > -1 and iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-deadlock-{iters}")
             elif iters % PRINTING_INTERVAL == 0:
                 print(f"Deadlock-{iters}")
 
         # After training, save and load the model to change environments for the next round of training
-        model.save(f"{models_dir}/Deadlock-final")
+        if not arguments.chtc:
+            model.save(f"{models_dir}/{outputFilename}-Deadlock-final-{arguments.process}")
+        else:
+            model.save(f"{outputFilename}-Deadlock-final-{arguments.process}")
 
         # If the next phase is exploration, load the model for the second environment, otherwise the third (full-cost environment)
+        base = f"{models_dir}/"
+        if arguments.chtc:
+            base = ""
         if arguments.enableExploration:
             if arguments.useTensorboard:
-                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+                model = MaskablePPO.load(f"{base}{outputFilename}-Deadlock-final-{arguments.process}", explorationTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
             else:
-                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, device="auto")
+                model = MaskablePPO.load(f"{base}{outputFilename}-Deadlock-final-{arguments.process}", explorationTrainingEnv, device="auto")
         else:
             if arguments.useTensorboard:
-                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+                model = MaskablePPO.load(f"{base}{outputFilename}-Deadlock-final-{arguments.process}", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
             else:
-                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, device="auto")
+                model = MaskablePPO.load(f"{base}{outputFilename}-Deadlock-final-{arguments.process}", fullCostTrainingEnv, device="auto")
 
     # Get ending time of the deadlock training
     deadlock_time = datetime.now()
@@ -126,20 +132,26 @@ def run(arguments):
         while iters < MAX_EXPLORATION_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
-            if EXPLORATION_ITERATION_SAVE_INTERVAL > -1 and iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
+            if not arguments.chtc and EXPLORATION_ITERATION_SAVE_INTERVAL > -1 and iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-exploration-{iters}")
             elif iters % PRINTING_INTERVAL == 0:
                 print(f"Exploration-{iters}")
 
 
         # After training, save and load the model to change environments for the next round of training
-        model.save(f"{models_dir}/Exploration-final")
+        if not arguments.chtc:
+            model.save(f"{models_dir}/{outputFilename}-Exploration-final-{arguments.process}")
+        else:
+            model.save(f"{outputFilename}-Exploration-final-{arguments.process}")
 
         # Load model for the third environment (full-cost environment)
+        base = f"{models_dir}/"
+        if arguments.chtc:
+            base = ""
         if arguments.useTensorboard:
-            model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+            model = MaskablePPO.load(f"{base}{outputFilename}-Exploration-final-{arguments.process}", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
         else:
-            model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, device="auto")
+            model = MaskablePPO.load(f"{base}{outputFilename}-Exploration-final-{arguments.process}", fullCostTrainingEnv, device="auto")
 
     # Get ending time of the exploration training
     exploration_time = datetime.now()
@@ -151,11 +163,16 @@ def run(arguments):
         while iters < MAX_FULL_COST_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=FULL_COST_TIMESTEPS)
-            if FULL_COST_ITERATION_SAVE_INTERVAL > -1 and iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
+            if not arguments.chtc and FULL_COST_ITERATION_SAVE_INTERVAL > -1 and iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-full-cost-{iters}")
             elif iters % PRINTING_INTERVAL == 0:
                 print(f"Fullcost-{iters}")
-        model.save(f"{models_dir}/Full-Cost-final")
+
+        
+        if not arguments.chtc:
+            model.save(f"{models_dir}/{outputFilename}-Full-Cost-final-{arguments.process}")
+        else:
+            model.save(f"{outputFilename}-Full-Cost-final-{arguments.process}")
 
     # Get ending time of the full-cost training
     ppo_time = datetime.now()
@@ -171,10 +188,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--baseModel", type=str, default=None, help="")
+    parser.add_argument("--process", type=int, default=0, help="")
     parser.add_argument("--enableDeadlock", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableExploration", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableFullcost", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--useTensorboard", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
+    parser.add_argument("--chtc", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
     run(args)

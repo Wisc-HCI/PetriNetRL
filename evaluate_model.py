@@ -68,7 +68,7 @@ def run(arguments):
     # Load model for evaluation
     model = None
     if arguments.model is not None:
-        model = MaskablePPO.load(arguments.model)
+        model = MaskablePPO.load(arguments.model, weights_only=True)
     else:
         model = MaskablePPO.load("models/PetriNet-PPO/Exploration-final.zip")
 

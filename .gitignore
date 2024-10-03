@@ -9,6 +9,7 @@ __pycache__/
 # Ignore Updates to this file, due to real testing
 *.json
 *.csv
+*.zip
 
 models/
 logs/
