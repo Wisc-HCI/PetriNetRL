@@ -19,11 +19,8 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def run(arguments):
-
-    print(arguments.enableDeadlock)
     # Get a start time to judge each phase's runtime
     start = datetime.now()
-
 
     # Masking function, call the environment's masking function
     def mask_fn(env: gym.Env) -> np.ndarray:
@@ -62,17 +59,35 @@ def run(arguments):
 
     # Set model to first (deadlock) environment
     if arguments.baseModel is None and arguments.enableDeadlock:
-        model = MaskablePPO(MaskableActorCriticPolicy, deadlockTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO(MaskableActorCriticPolicy, deadlockTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO(MaskableActorCriticPolicy, deadlockTrainingEnv, device="auto")
     elif arguments.baseModel is None and arguments.enableExploration:
-        model = MaskablePPO(MaskableActorCriticPolicy, explorationTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO(MaskableActorCriticPolicy, explorationTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO(MaskableActorCriticPolicy, explorationTrainingEnv, device="auto")
     elif arguments.baseModel is None and arguments.enableFullcost:
-        model = MaskablePPO(MaskableActorCriticPolicy, fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO(MaskableActorCriticPolicy, fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO(MaskableActorCriticPolicy, fullCostTrainingEnv, device="auto")
     elif arguments.enableDeadlock:
-        model = MaskablePPO.load(arguments.baseModel, deadlockTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO.load(arguments.baseModel, deadlockTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO.load(arguments.baseModel, deadlockTrainingEnv, device="auto")
     elif arguments.enableExploration:
-        model = MaskablePPO.load(arguments.baseModel, explorationTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO.load(arguments.baseModel, explorationTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO.load(arguments.baseModel, explorationTrainingEnv, device="auto")
     elif arguments.enableFullcost:
-        model = MaskablePPO.load(arguments.baseModel, fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO.load(arguments.baseModel, fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO.load(arguments.baseModel, fullCostTrainingEnv, device="auto")
 
     # Check if deadlock training is active
     if arguments.enableDeadlock:
@@ -81,17 +96,25 @@ def run(arguments):
         while iters < MAX_DEADLOCK_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
-            if iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
+            if DEADLOCK_ITERATION_SAVE_INTERVAL > -1 and iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-deadlock-{iters}")
+            elif iters % PRINTING_INTERVAL == 0:
+                print(f"Deadlock-{iters}")
 
         # After training, save and load the model to change environments for the next round of training
         model.save(f"{models_dir}/Deadlock-final")
 
         # If the next phase is exploration, load the model for the second environment, otherwise the third (full-cost environment)
         if arguments.enableExploration:
-            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+            if arguments.useTensorboard:
+                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+            else:
+                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", explorationTrainingEnv, device="auto")
         else:
-            model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+            if arguments.useTensorboard:
+                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+            else:
+                model = MaskablePPO.load(f"{models_dir}/Deadlock-final", fullCostTrainingEnv, device="auto")
 
     # Get ending time of the deadlock training
     deadlock_time = datetime.now()
@@ -103,14 +126,20 @@ def run(arguments):
         while iters < MAX_EXPLORATION_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
-            if iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
+            if EXPLORATION_ITERATION_SAVE_INTERVAL > -1 and iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-exploration-{iters}")
+            elif iters % PRINTING_INTERVAL == 0:
+                print(f"Exploration-{iters}")
+
 
         # After training, save and load the model to change environments for the next round of training
         model.save(f"{models_dir}/Exploration-final")
 
         # Load model for the third environment (full-cost environment)
-        model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, verbose=1, tensorboard_log=logdir, device="auto")
+        if arguments.useTensorboard:
+            model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")
+        else:
+            model = MaskablePPO.load(f"{models_dir}/Exploration-final", fullCostTrainingEnv, device="auto")
 
     # Get ending time of the exploration training
     exploration_time = datetime.now()
@@ -122,8 +151,10 @@ def run(arguments):
         while iters < MAX_FULL_COST_ITERATIONS:
             iters += 1
             model.learn(total_timesteps=FULL_COST_TIMESTEPS)
-            if iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
+            if FULL_COST_ITERATION_SAVE_INTERVAL > -1 and iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-full-cost-{iters}")
+            elif iters % PRINTING_INTERVAL == 0:
+                print(f"Fullcost-{iters}")
         model.save(f"{models_dir}/Full-Cost-final")
 
     # Get ending time of the full-cost training
@@ -143,6 +174,7 @@ if __name__ == "__main__":
     parser.add_argument("--enableDeadlock", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableExploration", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableFullcost", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
+    parser.add_argument("--useTensorboard", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
     run(args)
