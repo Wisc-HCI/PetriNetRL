@@ -96,14 +96,14 @@ class ExplorationEnv(gymnasium.Env):
 
         # iterate over transitions and mark all actions that aren't related to setup or spawning as available for reward when first used
         for i, place in enumerate(json_obj["transitions"]):
-            has_target = False
-            more_targets = False
+            is_progressable_action = False
+            is_simulation = False
             for data in json_obj["transitions"][place]["metaData"]:
-                if "target" in data["type"] and data["type"] != "target":
-                    more_targets = True
-                if data["type"] == "target":
-                    has_target = True
-            if (not more_targets) and has_target:
+                if data["type"] == "simulation":
+                    is_simulation = True
+                if data["type"] == "task":
+                    is_progressable_action = True
+            if is_progressable_action and is_simulation:
                 self.first_time_reward_for_transition[i] = True
 
         # Set the starting marking to the be the initial one
