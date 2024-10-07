@@ -14,7 +14,8 @@ class FullCostEnv(gymnasium.Env):
 
         self.json_obj = json_obj
 
-        self.weights = weights
+        # Store cost weighting
+        self.weights = [weights[ERGO_KEY], weights[MONETARY_KEY]]
         
         # Get the number of places and transitions in the petri net
         self.num_places = len(json_obj["places"])
@@ -46,7 +47,6 @@ class FullCostEnv(gymnasium.Env):
             self.transition_times.append(json_obj["transitions"][i]["time"])
 
         # Build cost array - ordered as [OneTime, Extrapolated]
-        # TODO: will need to check type and alpha, balancing between ERGO and ECON
         self.transition_costs = [[0, 0] for _ in range(self.num_transitions)]
 
         # Tracker for whether an action has been used for the first time or not
@@ -59,10 +59,19 @@ class FullCostEnv(gymnasium.Env):
             
             # Look over the cost set and add up the one time and extraploted costs (to each one's respective position in the array)
             for c in json_obj["transitions"][transition]["cost"]:
-                if c["frequency"] == ONE_TIME_KEY:
-                    one_time_cost += c["value"]
+                # Determine alpha weighting for each category
+                multiplier = 1
+                if c["category"] == ERGO_KEY:
+                    multiplier = self.weights[0]
                 else:
-                    extrapolated_cost += c["value"]
+                    multiplier = self.weights[1]
+
+                # Apply weighting to costs
+                if c["frequency"] == ONE_TIME_KEY:
+                    one_time_cost += multiplier * c["value"]
+                else:
+                    extrapolated_cost += multiplier * c["value"]
+
             self.transition_costs[i] = [one_time_cost, extrapolated_cost]
      
             # Inspect transition metadata to see which agent it is assigned to
@@ -160,6 +169,7 @@ class FullCostEnv(gymnasium.Env):
     # State reward function
     def reward_value(self, action, previous_state, new_state, goal_state, current_time):
         """Reward function for the full-cost environment. All costs come from the transitions"""
+        reward = 0
 
         # Reward is given by the cost of executing the transition
         reward -= self.transition_costs[action][EXTRAPOLATED_INDEX]
