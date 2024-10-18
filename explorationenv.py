@@ -4,6 +4,8 @@ import numpy as np
 import sys
 from constants import *
 from utils import *
+from torch.distributions import Distribution
+Distribution.set_default_validate_args(False)
 	
 class ExplorationEnv(gymnasium.Env):
     """Environment for exploring the petrinet. Actions in this environment are free, penalizing for deadlocks and invalid states, and rewarded for finding the goal state and making progress towards it"""
@@ -119,7 +121,7 @@ class ExplorationEnv(gymnasium.Env):
         
         # Setup observational space to be the number of tokens in each place (marking) - i.e. vector of places by 1
         self.observation_space = spaces.Box(low=-255, high=255,
-                                            shape=(self.num_places, 1,), dtype=np.float64)
+                                            shape=(self.num_places, 1,), dtype=np.float32)
 
     def step(self, action):
         # Build action array of 0s except for the selected action

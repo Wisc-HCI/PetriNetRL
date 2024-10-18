@@ -57,9 +57,9 @@ def run(arguments):
     [json_obj, weights] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    # env = FullCostEnv(json_obj, weights)
+    env = FullCostEnv(json_obj, weights)
     # TODO: (remove) Temporary, testing environment
-    env = ExplorationEnv(json_obj)
+    # env = ExplorationEnv(json_obj)
 
     # Reset and mask environment
     env.reset(0, {})

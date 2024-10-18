@@ -5,6 +5,8 @@ import numpy as np
 from constants import *
 from utils import *
 import random
+from torch.distributions import Distribution
+Distribution.set_default_validate_args(False)
 
 class FullCostEnv(gymnasium.Env):
     """Environment for learning the collaborative task"""
@@ -164,7 +166,7 @@ class FullCostEnv(gymnasium.Env):
         
         # Setup observational space to be the number of tokens in each place (marking) - i.e. vector of places by 1
         self.observation_space = spaces.Box(low=-255, high=255,
-                                            shape=(self.num_places, 1,), dtype=np.float64)
+                                            shape=(self.num_places, 1,), dtype=np.float32)
 
     # State reward function
     def reward_value(self, action, previous_state, new_state, goal_state, current_time):
