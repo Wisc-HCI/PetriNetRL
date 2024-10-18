@@ -33,3 +33,6 @@ ONE_TIME_KEY = "once"
 EXTRAPOLATED_KEY = "extrapolated"
 ONE_TIME_INDEX = 0
 EXTRAPOLATED_INDEX = 1
+
+ERGO_KEY = "ergonomic"
+MONETARY_KEY = "monetary"
