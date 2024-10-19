@@ -57,9 +57,10 @@ def run(arguments):
     [json_obj, weights] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    env = FullCostEnv(json_obj, weights)
-    # TODO: (remove) Temporary, testing environment
-    # env = ExplorationEnv(json_obj)
+    if (arguments.useExploreEnv):
+        env = ExplorationEnv(json_obj)
+    else:
+        env = FullCostEnv(json_obj, weights)
 
     # Reset and mask environment
     env.reset(0, {})
@@ -172,6 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
     parser.add_argument("--output", type=str, default=None, help="")
+    parser.add_argument("--useExploreEnv", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
     run(args)
