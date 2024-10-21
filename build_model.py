@@ -93,7 +93,7 @@ def run(arguments):
     if arguments.enableDeadlock:
         # Train model in the deadlock environment
         iters = 0
-        while iters < MAX_DEADLOCK_ITERATIONS:
+        while iters < arguments.deadlockIters:
             iters += 1
             model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
             if not arguments.chtc and DEADLOCK_ITERATION_SAVE_INTERVAL > -1 and iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
@@ -129,7 +129,7 @@ def run(arguments):
     if arguments.enableExploration:
         # Train model in the exploration environment
         iters = 0
-        while iters < MAX_EXPLORATION_ITERATIONS:
+        while iters < arguments.exploreIters:
             iters += 1
             model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
             if not arguments.chtc and EXPLORATION_ITERATION_SAVE_INTERVAL > -1 and iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
@@ -160,7 +160,7 @@ def run(arguments):
     if arguments.enableFullcost:
         # Train on the actual environment after we've learned to avoid deadlock scenarios
         iters = 0
-        while iters < MAX_FULL_COST_ITERATIONS:
+        while iters < arguments.fullcostIters:
             iters += 1
             model.learn(total_timesteps=FULL_COST_TIMESTEPS)
             if not arguments.chtc and FULL_COST_ITERATION_SAVE_INTERVAL > -1 and iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
@@ -189,6 +189,9 @@ if __name__ == "__main__":
     parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--baseModel", type=str, default=None, help="")
     parser.add_argument("--process", type=int, default=0, help="")
+    parser.add_argument("--deadlockIters", type=int, default=MAX_DEADLOCK_ITERATIONS, help="")
+    parser.add_argument("--exploreIters", type=int, default=MAX_EXPLORATION_ITERATIONS, help="")
+    parser.add_argument("--fullcostIters", type=int, default=MAX_FULL_COST_ITERATIONS, help="")
     parser.add_argument("--enableDeadlock", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableExploration", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--enableFullcost", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")

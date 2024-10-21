@@ -10,6 +10,7 @@ __pycache__/
 *.json
 *.csv
 *.zip
+*.sub
 
 models/
 logs/
