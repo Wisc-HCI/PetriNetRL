@@ -100,12 +100,17 @@ class ExplorationEnv(gymnasium.Env):
         for i, place in enumerate(json_obj["transitions"]):
             is_progressable_action = False
             is_simulation = False
+            override_flag = False
             for data in json_obj["transitions"][place]["metaData"]:
                 if data["type"] == "simulation":
                     is_simulation = True
+                if data["type"] == "setup":
+                    override_flag = True
+                if data["type"] == "spawn":
+                    override_flag = True
                 if data["type"] == "task":
                     is_progressable_action = True
-            if is_progressable_action and is_simulation:
+            if override_flag or (is_progressable_action and is_simulation):
                 self.first_time_reward_for_transition[i] = True
 
         # Set the starting marking to the be the initial one
