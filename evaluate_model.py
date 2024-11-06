@@ -54,11 +54,11 @@ def run(arguments):
         outputFilename = arguments.output
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
     if (arguments.useExploreEnv):
-        env = ExplorationEnv(json_obj)
+        env = ExplorationEnv(json_obj, json_task)
     else:
         env = FullCostEnv(json_obj, weights)
 
@@ -98,7 +98,7 @@ def run(arguments):
         cummulative_reward += rewards
         
         # Add selected action to sequence
-        action_sequence.append((env.transition_ids[action], action))
+        action_sequence.append((env.transition_ids[action], action, rewards))
         
         # If goal(s) are met or max timesteps are reached, mark as done and print
         if iteration >= MAX_TESTING_TIMESTEPS or done:
@@ -115,9 +115,9 @@ def run(arguments):
     # Write output to CSV
     with open(outputFilename, "w+", newline='') as fh:
         csv_writer = csv.writer(fh)
-        csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed"])
+        csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed", "Reward"])
 
-        for (transition_id, action) in action_sequence:
+        for (transition_id, action, reward) in action_sequence:
             transition = json_obj["transitions"][transition_id]
             costs = find_costs(transition)
             duration = transition["time"]
@@ -163,7 +163,7 @@ def run(arguments):
                     toStandLocation = json_obj["nameLookup"][m["value"][0]]
 
             # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
-            csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", fromStandLocation, toStandLocation, fromHandLocation, toHandLocation, currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded])
+            csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", fromStandLocation, toStandLocation, fromHandLocation, toHandLocation, currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded, reward])
             currentTime += duration
 
 

@@ -40,14 +40,14 @@ def run(arguments):
         f = arguments.inputfile
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
 
     # Determine naming scheme for model output
     outputFilename = f.replace(".json", "")
 
     # Create the 3 training environments
     deadlockTrainingEnv = DeadlockEnv(json_obj)
-    explorationTrainingEnv = ExplorationEnv(json_obj)
+    explorationTrainingEnv = ExplorationEnv(json_obj, json_task)
     fullCostTrainingEnv = FullCostEnv(json_obj, weights)
 
     # Reset and mask each environment

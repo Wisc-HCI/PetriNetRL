@@ -10,7 +10,7 @@ Distribution.set_default_validate_args(False)
 class ExplorationEnv(gymnasium.Env):
     """Environment for exploring the petrinet. Actions in this environment are free, penalizing for deadlocks and invalid states, and rewarded for finding the goal state and making progress towards it"""
 
-    def __init__(self, json_obj):
+    def __init__(self, json_obj, json_task):
         super(ExplorationEnv, self).__init__()
 
         # Get the number of places and transitions in the petri net
@@ -64,9 +64,16 @@ class ExplorationEnv(gymnasium.Env):
         # Create a base mask of acceptable actions
         self.base_mask = [True for _ in range(self.num_transitions)]
 
+
+        self.tasks = json_task
+        # for idx, task_id in enumerate(json_task):
+        #     self.tasks.append(task_id)
+
         # Tracking whether "first time reward" can be applied for this transition
         # I am basing this off of "making progress" in the collaboration - i.e. they produce an intermediate part / use a target
         self.first_time_reward_for_transition = [False for _ in range(self.num_transitions)]
+        self.task_transitions = [-1 for _ in range(self.num_transitions)]
+        self.setup_transition = [False for _ in range(self.num_transitions)]
 
         # Build input and overall incidence matricies
         for row, place in enumerate(json_obj["places"]):
@@ -96,23 +103,27 @@ class ExplorationEnv(gymnasium.Env):
                 # Update the input incidence matrix cell value
                 self.iC[row][col] = deltaI
 
-        # iterate over transitions and mark all actions that aren't related to setup or spawning as available for reward when first used
+        # iterate over transitions and mark all actions that are related to setup or task progression as available for reward
         for i, place in enumerate(json_obj["transitions"]):
             is_progressable_action = False
-            is_simulation = False
-            override_flag = False
+            is_setup_step = False
             for data in json_obj["transitions"][place]["metaData"]:
-                if data["type"] == "simulation":
-                    is_simulation = True
                 if data["type"] == "setup":
-                    override_flag = True
-                if data["type"] == "spawn":
-                    override_flag = True
+                    is_setup_step = True
                 if data["type"] == "task":
                     is_progressable_action = True
-            if override_flag or (is_progressable_action and is_simulation):
+
+                    # Offset by 1 since this is multiplied in the reward function
+                    self.task_transitions[i] = self.tasks[data["value"]]["order"]
+
+            # Mark whether the transition is a setup step or if it is a task-based transition
+            if is_setup_step:
+                self.setup_transition[i] = True
+            elif is_progressable_action:
                 self.first_time_reward_for_transition[i] = True
 
+
+        # print(self.task_transitions)
         # Set the starting marking to the be the initial one
         self.marking = self.initial_marking.copy()
 
@@ -136,24 +147,13 @@ class ExplorationEnv(gymnasium.Env):
         self.marking = self.marking + np.dot(self.C, a)
 
         # Determine reward
-        tmp_rwd = self.get_reward(self.marking.copy())
+        tmp_rwd = self.get_reward(self.marking.copy(), action)
 
         # Check if goal state is reached
         goal_reached = IS_GOAL(self.marking, self.goal_state)
 
-        # If not in a deadlock or invalid state, check if this is the first occurance/usage of the selected action
-        # If so, give small positive reward
-        if tmp_rwd >= 0 and self.first_time_reward_for_transition[action]:
-            self.first_time_reward_for_transition[action] = False
-            # Small incentive to progress to goal
-            tmp_rwd += FIRST_TIME_ACTION_REWARD
-
-        # high reward for goal
-        if goal_reached:
-            tmp_rwd += GOAL_FOUND_REWARD
-
         # Mark done if reward is negative or if the goal state is reached
-        done = tmp_rwd < 0 or goal_reached
+        done = goal_reached
 
         return self.marking.copy(), tmp_rwd, done, False, {}
 
@@ -167,8 +167,10 @@ class ExplorationEnv(gymnasium.Env):
 
         return self.marking, {}  # reward, done, info can't be included
 
-    def get_reward(self, newMarking):
+    def get_reward(self, newMarking, chosenAction):
         """Reward function for the exploration environment"""
+
+        reward = 0
 
         # Tracker for whether all agents in the petri net have been discarded
         allAgentsDiscarded = True
@@ -181,17 +183,64 @@ class ExplorationEnv(gymnasium.Env):
         
         # If all agents are discard, this is a deadlock so assign heavy negative reward
         if allAgentsDiscarded:
-            return DEADLOCK_OCCURS_REWARD
+            reward += DEADLOCK_OCCURS_REWARD
 
         # Iterate over transitions (action space) and check if any actions are available from the current state
         # If so, return 0.0
-        for i in range(self.num_transitions):
-            for j in range(self.num_places):
+        valid_actions = False
+        i = 0
+        while i < self.num_transitions:
+            j = 0
+            while j < self.num_places:
                 if newMarking[j][0] + self.iC[j][i] >= 0:
-                    return 0.0
+                    valid_actions = True
+                    i = self.num_transitions
+                    j = self.num_places
+                j += 1
+            i += 1
 
         # No valid actions, so this is a bad state to be in
-        return DEADLOCK_OCCURS_REWARD
+        if not valid_actions:
+            reward += DEADLOCK_OCCURS_REWARD
+
+
+        goal_reached = IS_GOAL(newMarking, self.goal_state)
+
+        # Check if new state is invalid or goal
+        if np.any(newMarking < 0.0):
+            reward += INVALID_STATE_REWARD
+        elif goal_reached:
+            reward += GOAL_FOUND_REWARD
+
+        # If not in a deadlock, invalid, or goal state, check if this is a setup step
+        # If so, reward
+        if reward >= 0 and self.setup_transition[chosenAction]:
+            # Small incentive to progress to goal
+            reward += 2.0 * FIRST_TIME_ACTION_REWARD
+
+        if reward >= 0 and self.first_time_reward_for_transition[chosenAction]:
+            # self.first_time_reward_for_transition[chosenAction] = False
+            # Small incentive to progress to goal
+            if self.task_transitions[chosenAction] > -1:
+                reward += self.task_transitions[chosenAction] * FIRST_TIME_ACTION_REWARD
+            else:
+                reward += FIRST_TIME_ACTION_REWARD
+
+        # Add cost for exploration
+        reward += STEP_REWARD
+
+        return reward
+    
+
+        
+
+        # # If transition has a 1 time cost (such as purchasing) and it hasn't been used before, use it
+        # if not self.used_one_time_cost[action]:
+        #     # Incur transition cost
+        #     reward -= self.transition_costs[action][ONE_TIME_INDEX]
+
+        #     # Update that we have incurred the cost
+        #     self.used_one_time_cost[action] = True
 
     def valid_action_mask(self):
         """Determine all possible valid actions at the current state"""
