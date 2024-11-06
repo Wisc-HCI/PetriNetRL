@@ -58,8 +58,10 @@ def run(arguments):
 
     # Setup evaluation environment
     if (arguments.useExploreEnv):
+        print("Using Exploration Env")
         env = ExplorationEnv(json_obj, json_task)
     else:
+        print("Using Full Cost Env")
         env = FullCostEnv(json_obj, weights)
 
     # Reset and mask environment

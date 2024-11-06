@@ -64,10 +64,8 @@ class ExplorationEnv(gymnasium.Env):
         # Create a base mask of acceptable actions
         self.base_mask = [True for _ in range(self.num_transitions)]
 
-
+        # 
         self.tasks = json_task
-        # for idx, task_id in enumerate(json_task):
-        #     self.tasks.append(task_id)
 
         # Tracking whether "first time reward" can be applied for this transition
         # I am basing this off of "making progress" in the collaboration - i.e. they produce an intermediate part / use a target
@@ -104,17 +102,17 @@ class ExplorationEnv(gymnasium.Env):
                 self.iC[row][col] = deltaI
 
         # iterate over transitions and mark all actions that are related to setup or task progression as available for reward
-        for i, place in enumerate(json_obj["transitions"]):
+        for i, transition in enumerate(json_obj["transitions"]):
             is_progressable_action = False
             is_setup_step = False
-            for data in json_obj["transitions"][place]["metaData"]:
+            for data in json_obj["transitions"][transition]["metaData"]:
                 if data["type"] == "setup":
                     is_setup_step = True
                 if data["type"] == "task":
                     is_progressable_action = True
 
                     # Offset by 1 since this is multiplied in the reward function
-                    self.task_transitions[i] = self.tasks[data["value"]]["order"]
+                    self.task_transitions[i] = self.tasks[data["value"]]["order"] + 1
 
             # Mark whether the transition is a setup step or if it is a task-based transition
             if is_setup_step:
@@ -122,8 +120,6 @@ class ExplorationEnv(gymnasium.Env):
             elif is_progressable_action:
                 self.first_time_reward_for_transition[i] = True
 
-
-        # print(self.task_transitions)
         # Set the starting marking to the be the initial one
         self.marking = self.initial_marking.copy()
 
