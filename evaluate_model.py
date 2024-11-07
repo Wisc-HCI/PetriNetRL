@@ -53,6 +53,10 @@ def run(arguments):
     if arguments.output is not None:
         outputFilename = arguments.output
 
+    primitiveOutputFilename = "primitive-" + f.replace(".json", "") + "-output.csv"
+    if arguments.output is not None:
+        primitiveOutputFilename = "primitive-" + arguments.output
+
     # Load petrinet data from json (transitions, places)
     [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
 
@@ -117,7 +121,30 @@ def run(arguments):
     # Write output to CSV
     with open(outputFilename, "w+", newline='') as fh:
         csv_writer = csv.writer(fh)
-        csv_writer.writerow(["Action", "Type", "Agent Assigned To Task", "From Standing Location", "To Standing Location", "From Hand Location", "To Hand Location", "Start Time (s)", "End Time (s)", "Hand Cost", "Arm Cost", "Shoulder Cost", "Whole Body Cost", "Monetary Cost", "Primitives", "MVC", "Hand Distance", "Stand Distance", "Is One Handed", "Reward"])
+        csv_writer.writerow(["Action", 
+                             "Type", 
+                             "Reward", 
+                             "Agent Assigned To Task", 
+                             "Start Time (s)", 
+                             "End Time (s)", 
+                             "From Standing Location", 
+                             "To Standing Location", 
+                             "From Hand Location", 
+                             "To Hand Location", 
+                             "Hand Cost", 
+                             "Arm Cost", 
+                             "Shoulder Cost", 
+                             "Whole Body Cost", 
+                             "Monetary Cost", 
+                             "Primitives", 
+                             "MVC", 
+                             "Vertical Hand Distance Traveled", 
+                             "Horizontal Hand Distance Traveled", 
+                             "Stand Distance Traveled", 
+                             "Reach Distance", 
+                             "Hand To Floor Distance", 
+                             "Is One Handed", 
+                             "Is Hand Work"])
 
         for (transition_id, action, reward) in action_sequence:
             transition = json_obj["transitions"][transition_id]
@@ -126,8 +153,12 @@ def run(arguments):
             primtives = ""
             mvcs = ""
             isOneHanded = ""
+            isHandWork = ""
             standDistanceTraveled = ""
-            handDistanceTraveled = ""
+            horizontalHandDistanceTraveled = ""
+            verticalHandDistanceTraveled = ""
+            reachDistance = ""
+            distanceFromHandToFloor = ""
             a = 0
             fromHandLocation = ""
             toHandLocation = ""
@@ -143,12 +174,20 @@ def run(arguments):
                         a = 1
                 elif m["type"] == "isOneHanded":
                     isOneHanded += "True" if m["value"][1] else "False" + ";"
+                elif m["type"] == "isHandWork":
+                    isHandWork += "True" if m["value"][1] else "False" + ";"
                 elif m["type"] == "mVC":
                     mvcs += str(m["value"][1]) + ";"
-                elif m["type"] == "handTravelDistance":
-                    handDistanceTraveled += str(m["value"][1]) + ";"
+                elif m["type"] == "horizontalHandTravelDistance":
+                    horizontalHandDistanceTraveled += str(m["value"][1]) + ";"
+                elif m["type"] == "verticalHandTravelDistance":
+                    verticalHandDistanceTraveled += str(m["value"][1]) + ";"
                 elif m["type"] == "standTravelDistance":
                     standDistanceTraveled += str(m["value"][1]) + ";"
+                elif m["type"] == "reachDistance":
+                    reachDistance += str(m["value"][1]) + ";"
+                elif m["type"] == "handDistanceToFloor":
+                    distanceFromHandToFloor += str(m["value"][1]) + ";"
                 elif m["type"] == "standing":
                     fromStandLocation = json_obj["nameLookup"][m["value"][0]]
                     toStandLocation = fromStandLocation
@@ -165,7 +204,177 @@ def run(arguments):
                     toStandLocation = json_obj["nameLookup"][m["value"][0]]
 
             # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
-            csv_writer.writerow([env.transition_names[action], is_sim_type(transition), "", fromStandLocation, toStandLocation, fromHandLocation, toHandLocation, currentTime, currentTime+duration, costs[0], costs[1], costs[2], costs[3], costs[4], primtives, mvcs, handDistanceTraveled, standDistanceTraveled, isOneHanded, reward])
+            csv_writer.writerow([env.transition_names[action], 
+                                 is_sim_type(transition),
+                                 reward, 
+                                 "", 
+                                 currentTime, 
+                                 currentTime+duration, 
+                                 fromStandLocation, 
+                                 toStandLocation, 
+                                 fromHandLocation, 
+                                 toHandLocation, 
+                                 costs[0], 
+                                 costs[1], 
+                                 costs[2], 
+                                 costs[3], 
+                                 costs[4], 
+                                 primtives, 
+                                 mvcs, 
+                                 verticalHandDistanceTraveled,
+                                 horizontalHandDistanceTraveled, 
+                                 standDistanceTraveled, 
+                                 reachDistance,
+                                 distanceFromHandToFloor,
+                                 isOneHanded, 
+                                 isHandWork
+                                 ])
+            currentTime += duration
+
+    currentTime = 0
+    uuid = 0
+    # Write output to primitives CSV
+    with open(primitiveOutputFilename, "w+", newline='') as fh:
+        csv_writer = csv.writer(fh)
+        csv_writer.writerow(["Unique ID",
+                             "Action",
+                             "Primitive",
+                             "Type",
+                             "Reward", 
+                             "Agent Assigned To Task", 
+                             "Start Time (s)", 
+                             "End Time (s)", 
+                             "From Standing Location", 
+                             "To Standing Location", 
+                             "From Hand Location", 
+                             "To Hand Location", 
+                             "Hand Cost", 
+                             "Arm Cost", 
+                             "Shoulder Cost", 
+                             "Whole Body Cost", 
+                             "Monetary Cost",
+                             "MVC", 
+                             "Vertical Hand Distance Traveled", 
+                             "Horizontal Hand Distance Traveled", 
+                             "Stand Distance Traveled", 
+                             "Reach Distance", 
+                             "Hand To Floor Distance", 
+                             "Is One Handed", 
+                             "Is Hand Work"])
+
+        for (transition_id, action, reward) in action_sequence:
+            uuid += 1
+            transition = json_obj["transitions"][transition_id]
+            costs = find_costs(transition)
+            duration = transition["time"]
+            primtives = ""
+            mvcs = ""
+            isOneHanded = ""
+            isHandWork = ""
+            standDistanceTraveled = ""
+            horizontalHandDistanceTraveled = ""
+            verticalHandDistanceTraveled = ""
+            reachDistance = ""
+            distanceFromHandToFloor = ""
+            a = 0
+            fromHandLocation = ""
+            toHandLocation = ""
+            fromStandLocation = ""
+            toStandLocation = ""
+
+            primitive_dictionary = {}
+
+            # iterate once to get all primitives
+            for m in transition["metaData"]:
+                if m["type"] == "primitiveAssignment":
+                    try:
+                        primitive_dictionary[m["value"][1]] = ["" for _ in range(25)]
+                        primitive_dictionary[m["value"][1]][0] = uuid
+                        primitive_dictionary[m["value"][1]][1] = env.transition_names[action]
+                        primitive_dictionary[m["value"][1]][2] = json_obj["nameLookup"][m["value"][1]]
+                        primitive_dictionary[m["value"][1]][3] = is_sim_type(transition)
+                        primitive_dictionary[m["value"][1]][4] = reward
+                        # ... left blank for agent (for now)
+                        primitive_dictionary[m["value"][1]][6] = currentTime
+                        primitive_dictionary[m["value"][1]][7] = currentTime+duration
+                        # ....
+                        primitive_dictionary[m["value"][1]][12] = costs[0]
+                        primitive_dictionary[m["value"][1]][13] = costs[1]
+                        primitive_dictionary[m["value"][1]][14] = costs[2]
+                        primitive_dictionary[m["value"][1]][15] = costs[3]
+                        primitive_dictionary[m["value"][1]][16] = costs[4]
+                    except:
+                        a = 1
+
+
+            # Iterate over transition metadata to extract information for CSV output
+            for m in transition["metaData"]:
+                if m["type"] == "mVC":
+                    primitive_dictionary[m["value"][0]][17] = str(m["value"][1])
+                elif m["type"] == "verticalHandTravelDistance":
+                    primitive_dictionary[m["value"][0]][18] = str(m["value"][1])
+                elif m["type"] == "horizontalHandTravelDistance":
+                    primitive_dictionary[m["value"][0]][19] = str(m["value"][1])
+                elif m["type"] == "standTravelDistance":
+                    primitive_dictionary[m["value"][0]][20] = str(m["value"][1])
+                elif m["type"] == "reachDistance":
+                    primitive_dictionary[m["value"][0]][21] = str(m["value"][1])
+                elif m["type"] == "handDistanceToFloor":
+                    primitive_dictionary[m["value"][0]][22] = str(m["value"][1])
+                if m["type"] == "isOneHanded":
+                    primitive_dictionary[m["value"][0]][23] = "True" if m["value"][1] else "False"
+                elif m["type"] == "isHandWork":
+                    primitive_dictionary[m["value"][0]][24] = "True" if m["value"][1] else "False"
+                elif m["type"] == "standing":
+                    fromStandLocation = json_obj["nameLookup"][m["value"][0]]
+                    toStandLocation = fromStandLocation
+                elif m["type"] == "hand":
+                    fromHandLocation = json_obj["nameLookup"][m["value"][0]]
+                    toHandLocation = fromHandLocation
+                elif m["type"] == "fromHandPOI":
+                    fromHandLocation = json_obj["nameLookup"][m["value"][0]]
+                elif m["type"] == "toHandPOI":
+                    toHandLocation = json_obj["nameLookup"][m["value"][0]]
+                elif m["type"] == "fromStandingPOI":
+                    fromStandLocation = json_obj["nameLookup"][m["value"][0]]
+                elif m["type"] == "toStandingPOI":
+                    toStandLocation = json_obj["nameLookup"][m["value"][0]]
+
+            if len(primitive_dictionary.keys()) == 0:
+                primitive_dictionary[""] = [uuid,
+                                            env.transition_names[action],
+                                            "",
+                                            is_sim_type(transition),
+                                            reward,
+                                            "",
+                                            currentTime,
+                                            currentTime+duration,
+                                            fromStandLocation,
+                                            toStandLocation,
+                                            fromHandLocation,
+                                            toHandLocation,
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            ]
+
+            for key in primitive_dictionary:
+                primitive_dictionary[key][8] = fromStandLocation
+                primitive_dictionary[key][9] = toStandLocation
+                primitive_dictionary[key][10] = fromHandLocation
+                primitive_dictionary[key][11] = toHandLocation
+                csv_writer.writerow(primitive_dictionary[key])
+
             currentTime += duration
 
 
