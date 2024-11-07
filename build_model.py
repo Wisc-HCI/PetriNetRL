@@ -48,7 +48,7 @@ def run(arguments):
     # Create the 3 training environments
     deadlockTrainingEnv = DeadlockEnv(json_obj)
     explorationTrainingEnv = ExplorationEnv(json_obj, json_task)
-    fullCostTrainingEnv = FullCostEnv(json_obj, weights)
+    fullCostTrainingEnv = FullCostEnv(json_obj, weights, json_task)
 
     # Reset and mask each environment
     deadlockTrainingEnv.reset(0, {})

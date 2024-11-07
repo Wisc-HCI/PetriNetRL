@@ -11,10 +11,11 @@ Distribution.set_default_validate_args(False)
 class FullCostEnv(gymnasium.Env):
     """Environment for learning the collaborative task"""
 
-    def __init__(self, json_obj, weights):
+    def __init__(self, json_obj, weights, tasks):
         super(FullCostEnv, self).__init__()
 
         self.json_obj = json_obj
+        self.tasks = tasks
 
         # Store cost weighting
         self.weights = [weights[ERGO_KEY], weights[MONETARY_KEY]]
@@ -54,6 +55,12 @@ class FullCostEnv(gymnasium.Env):
         # Tracker for whether an action has been used for the first time or not
         self.used_one_time_cost = [False for _ in range(self.num_transitions)]
 
+        # Tracking whether "first time reward" can be applied for this transition
+        # I am basing this off of "making progress" in the collaboration - i.e. they produce an intermediate part / use a target
+        self.first_time_reward_for_transition = [False for _ in range(self.num_transitions)]
+        self.task_transitions = [-1 for _ in range(self.num_transitions)]
+        self.setup_transition = [False for _ in range(self.num_transitions)]
+
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
             one_time_cost = 0
@@ -76,6 +83,8 @@ class FullCostEnv(gymnasium.Env):
 
             self.transition_costs[i] = [one_time_cost, extrapolated_cost]
      
+            is_progressable_action = False
+            is_setup_step = False
             # Inspect transition metadata to see which agent it is assigned to
             for data in json_obj["transitions"][transition]["metaData"]:
                 if data["type"] == "agent":
@@ -88,6 +97,35 @@ class FullCostEnv(gymnasium.Env):
                         self.agent_transitions[data["value"]].append(i)
                     except:
                         self.agent_transitions[data["value"]] = [i]
+                
+                if data["type"] == "setup":
+                    is_setup_step = True
+                if data["type"] == "task":
+                    is_progressable_action = True
+
+                    # Offset by 1 since this is multiplied in the reward function
+                    self.task_transitions[i] = self.tasks[data["value"]]["order"] + 1
+
+            # Mark whether the transition is a setup step or if it is a task-based transition
+            if is_setup_step:
+                self.setup_transition[i] = True
+            elif is_progressable_action:
+                self.first_time_reward_for_transition[i] = True
+
+        maxValue = -sys.maxsize - 1
+        minValue = sys.maxsize
+        maxValue2 = -sys.maxsize - 1
+        minValue2 = sys.maxsize
+        for i in range(len(self.transition_costs)):
+            maxValue = max(maxValue, self.transition_costs[i][0])
+            maxValue2 = max(maxValue2, self.transition_costs[i][1])
+            minValue = min(minValue, self.transition_costs[i][0])
+            minValue2 = min(minValue2, self.transition_costs[i][1])
+        for i in range(len(self.transition_costs)):
+            if self.transition_costs[i][0] > 0:
+                self.transition_costs[i][0] = (self.transition_costs[i][0]-minValue) / (maxValue - minValue)
+            if self.transition_costs[i][1] > 0:
+                self.transition_costs[i][1] = (self.transition_costs[i][1]-minValue2) / (maxValue2 - minValue2)
 
         # Determine the initial marking and goal state(s) of the petri net
         self.initial_marking = np.empty((self.num_places, 1))
@@ -173,9 +211,6 @@ class FullCostEnv(gymnasium.Env):
         """Reward function for the full-cost environment. All costs come from the transitions"""
         reward = 0
 
-        # Reward is given by the cost of executing the transition
-        reward -= self.transition_costs[action][EXTRAPOLATED_INDEX]
-
         # If transition has a 1 time cost (such as purchasing) and it hasn't been used before, use it
         if not self.used_one_time_cost[action]:
             # Incur transition cost
@@ -190,7 +225,27 @@ class FullCostEnv(gymnasium.Env):
         # Check if the goal conidition are met
         elif IS_GOAL(new_state, goal_state):
             reward += GOAL_FOUND_REWARD
+
         
+        # If not in a deadlock, invalid, or goal state, check if this is a setup step
+        # If so, reward
+        if self.setup_transition[action]:
+            # Small incentive to progress to goal
+            reward += 2.0 * FIRST_TIME_ACTION_REWARD
+
+        if self.first_time_reward_for_transition[action]:
+            # self.first_time_reward_for_transition[chosenAction] = False
+            # Small incentive to progress to goal
+            if self.task_transitions[action] > -1:
+                reward += self.task_transitions[action] * FIRST_TIME_ACTION_REWARD
+            else:
+                reward += FIRST_TIME_ACTION_REWARD
+
+        #     # Reward is given by the cost of executing the transition
+        #     reward += self.transition_costs[action][EXTRAPOLATED_INDEX]
+        # else:
+        reward -= self.transition_costs[action][EXTRAPOLATED_INDEX]
+
         # Incur a very small cost to explore
         reward += STEP_REWARD
 

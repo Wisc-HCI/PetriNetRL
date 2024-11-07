@@ -66,7 +66,7 @@ def run(arguments):
         env = ExplorationEnv(json_obj, json_task)
     else:
         print("Using Full Cost Env")
-        env = FullCostEnv(json_obj, weights)
+        env = FullCostEnv(json_obj, weights, json_task)
 
     # Reset and mask environment
     env.reset(0, {})
