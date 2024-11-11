@@ -61,10 +61,14 @@ class FullCostEnv(gymnasium.Env):
         self.task_transitions = [-1 for _ in range(self.num_transitions)]
         self.setup_transition = [False for _ in range(self.num_transitions)]
 
+        self.base_mask = [True for _ in range(self.num_transitions)]
+
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
             one_time_cost = 0
             extrapolated_cost = 0
+
+            # TODO: do something if rest action? (i.e. recoup costs if costs exist)
             
             # Look over the cost set and add up the one time and extraploted costs (to each one's respective position in the array)
             for c in json_obj["transitions"][transition]["cost"]:
@@ -97,10 +101,12 @@ class FullCostEnv(gymnasium.Env):
                         self.agent_transitions[data["value"]].append(i)
                     except:
                         self.agent_transitions[data["value"]] = [i]
-                
-                if data["type"] == "setup":
+                elif data["type"] == "rest":
+                    # Add transition to rest list so we can mark it invalid in mask
+                    self.base_mask[i] = False
+                elif data["type"] == "setup":
                     is_setup_step = True
-                if data["type"] == "task":
+                elif data["type"] == "task":
                     is_progressable_action = True
 
                     # Offset by 1 since this is multiplied in the reward function
@@ -112,15 +118,19 @@ class FullCostEnv(gymnasium.Env):
             elif is_progressable_action:
                 self.first_time_reward_for_transition[i] = True
 
+        # Find min/max of the extrapolated and one time costs
         maxValue = -sys.maxsize - 1
         minValue = sys.maxsize
         maxValue2 = -sys.maxsize - 1
         minValue2 = sys.maxsize
         for i in range(len(self.transition_costs)):
             maxValue = max(maxValue, self.transition_costs[i][0])
-            maxValue2 = max(maxValue2, self.transition_costs[i][1])
             minValue = min(minValue, self.transition_costs[i][0])
+
+            maxValue2 = max(maxValue2, self.transition_costs[i][1])
             minValue2 = min(minValue2, self.transition_costs[i][1])
+
+        # Normalize (0-1) based on the found min/maxs
         for i in range(len(self.transition_costs)):
             if self.transition_costs[i][0] > 0:
                 self.transition_costs[i][0] = (self.transition_costs[i][0]-minValue) / (maxValue - minValue)
@@ -220,7 +230,7 @@ class FullCostEnv(gymnasium.Env):
             self.used_one_time_cost[action] = True
         
         # Check if any invalid states occur (place has negative token count)
-        if np.any(new_state < 0.0):
+        if IS_INVALID_STATE(new_state):
             reward += INVALID_STATE_REWARD
         # Check if the goal conidition are met
         elif IS_GOAL(new_state, goal_state):
@@ -241,7 +251,7 @@ class FullCostEnv(gymnasium.Env):
             else:
                 reward += FIRST_TIME_ACTION_REWARD
 
-        #     # Reward is given by the cost of executing the transition
+            # Reward is given by the cost of executing the transition
         #     reward += self.transition_costs[action][EXTRAPOLATED_INDEX]
         # else:
         reward -= self.transition_costs[action][EXTRAPOLATED_INDEX]
@@ -330,7 +340,7 @@ class FullCostEnv(gymnasium.Env):
         # Determine reward
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time)
 
-        return self.marking, tmp_rwd, IS_GOAL(self.marking, self.goal_state), False, {}
+        return self.marking, tmp_rwd, IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking), False, {}
 
     def reset(self, seed=0, options={}):
         """Reset the environment"""
@@ -346,7 +356,7 @@ class FullCostEnv(gymnasium.Env):
         """Determine all possible valid actions at the current state"""
 
         # Assume all actions are valid
-        valid_actions = [True for _ in range(self.num_transitions)]
+        valid_actions = self.base_mask.copy()
 
         # If worker is busy, they can't perform any new actions, so mark any actions related to that worker as false
         for (worker_id, _time, _action) in self.busy_workers:

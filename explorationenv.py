@@ -203,7 +203,7 @@ class ExplorationEnv(gymnasium.Env):
         goal_reached = IS_GOAL(newMarking, self.goal_state)
 
         # Check if new state is invalid or goal
-        if np.any(newMarking < 0.0):
+        if IS_INVALID_STATE(newMarking):
             reward += INVALID_STATE_REWARD
         elif goal_reached:
             reward += GOAL_FOUND_REWARD

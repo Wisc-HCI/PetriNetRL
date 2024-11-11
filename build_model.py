@@ -101,7 +101,7 @@ def run(arguments):
             model.learn(total_timesteps=DEADLOCK_TIMESTEPS)
             if not arguments.chtc and DEADLOCK_ITERATION_SAVE_INTERVAL > -1 and iters % DEADLOCK_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-deadlock-{iters}")
-            elif iters % PRINTING_INTERVAL == 0:
+            if iters % PRINTING_INTERVAL == 0:
                 print(f"Deadlock-{iters}")
 
         # After training, save and load the model to change environments for the next round of training
@@ -137,7 +137,7 @@ def run(arguments):
             model.learn(total_timesteps=EXPLORATION_TIMESTEPS)
             if not arguments.chtc and EXPLORATION_ITERATION_SAVE_INTERVAL > -1 and iters % EXPLORATION_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-exploration-{iters}")
-            elif iters % PRINTING_INTERVAL == 0:
+            if iters % PRINTING_INTERVAL == 0:
                 print(f"Exploration-{iters}")
 
 
@@ -168,7 +168,7 @@ def run(arguments):
             model.learn(total_timesteps=FULL_COST_TIMESTEPS)
             if not arguments.chtc and FULL_COST_ITERATION_SAVE_INTERVAL > -1 and iters % FULL_COST_ITERATION_SAVE_INTERVAL == 0:
                 model.save(f"{models_dir}/{outputFilename}-full-cost-{iters}")
-            elif iters % PRINTING_INTERVAL == 0:
+            if iters % PRINTING_INTERVAL == 0:
                 print(f"Fullcost-{iters}")
 
         
