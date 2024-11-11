@@ -43,7 +43,10 @@ def run(arguments):
     [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
 
     # Determine naming scheme for model output
-    outputFilename = f.replace(".json", "")
+    outputFilename = ""
+    if arguments.prepend is not None:
+        outputFilename += arguments.prepend + "-"
+    outputFilename += f.replace(".json", "")
 
     # Create the 3 training environments
     deadlockTrainingEnv = DeadlockEnv(json_obj)
@@ -188,6 +191,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--baseModel", type=str, default=None, help="")
+    parser.add_argument("--prepend", type=str, default=None, help="")
     parser.add_argument("--process", type=int, default=0, help="")
     parser.add_argument("--deadlockIters", type=int, default=MAX_DEADLOCK_ITERATIONS, help="")
     parser.add_argument("--exploreIters", type=int, default=MAX_EXPLORATION_ITERATIONS, help="")

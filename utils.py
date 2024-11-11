@@ -9,6 +9,9 @@ def IS_GOAL(marking, goal_state):
             return False
     return True
 
+def IS_INVALID_STATE(marking):
+    return np.any(marking < 0.0)
+
 def LOAD_JOB_FILE(filename):
     with open(filename, encoding='utf-8') as fh:
         json_obj = json.load(fh)
