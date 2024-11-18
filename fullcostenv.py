@@ -5,6 +5,7 @@ import numpy as np
 from constants import *
 from utils import *
 import random
+import math
 from torch.distributions import Distribution
 Distribution.set_default_validate_args(False)
 
@@ -29,6 +30,9 @@ class FullCostEnv(gymnasium.Env):
 
         # Tracker for what agents exist in the network
         self.all_agents = []
+
+        # Tracker for agent exertion rate
+        self.agent_exertion = []
 
         # Index into all transition specific to an agent
         self.agent_transitions = {}
@@ -63,6 +67,8 @@ class FullCostEnv(gymnasium.Env):
 
         self.base_mask = [True for _ in range(self.num_transitions)]
 
+        self.rest_action_indecies = []
+
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
             one_time_cost = 0
@@ -95,6 +101,7 @@ class FullCostEnv(gymnasium.Env):
                     # If agent data is found, ensure that the agent is in the all_agents tracker
                     if data["value"] not in self.all_agents:
                         self.all_agents.append(data["value"])
+                        self.agent_exertion.append([0, 0])
 
                     # Add the transition to the agent's possible action space
                     try:
@@ -103,7 +110,8 @@ class FullCostEnv(gymnasium.Env):
                         self.agent_transitions[data["value"]] = [i]
                 elif data["type"] == "rest":
                     # Add transition to rest list so we can mark it invalid in mask
-                    self.base_mask[i] = False
+                    # self.base_mask[i] = False
+                    self.rest_action_indecies.append(i)
                 elif data["type"] == "setup":
                     is_setup_step = True
                 elif data["type"] == "task":
@@ -124,11 +132,13 @@ class FullCostEnv(gymnasium.Env):
         maxValue2 = -sys.maxsize - 1
         minValue2 = sys.maxsize
         for i in range(len(self.transition_costs)):
-            maxValue = max(maxValue, self.transition_costs[i][0])
-            minValue = min(minValue, self.transition_costs[i][0])
+            if self.transition_costs[i][0] >= 0:
+                maxValue = max(maxValue, self.transition_costs[i][0])
+                minValue = min(minValue, self.transition_costs[i][0])
 
-            maxValue2 = max(maxValue2, self.transition_costs[i][1])
-            minValue2 = min(minValue2, self.transition_costs[i][1])
+            if self.transition_costs[i][1] >= 0:
+                maxValue2 = max(maxValue2, self.transition_costs[i][1])
+                minValue2 = min(minValue2, self.transition_costs[i][1])
 
         # Normalize (0-1) based on the found min/maxs
         for i in range(len(self.transition_costs)):
@@ -217,7 +227,7 @@ class FullCostEnv(gymnasium.Env):
                                             shape=(self.num_places, 1,), dtype=np.float32)
 
     # State reward function
-    def reward_value(self, action, previous_state, new_state, goal_state, current_time):
+    def reward_value(self, action, previous_state, new_state, goal_state, current_time, selected_worker):
         """Reward function for the full-cost environment. All costs come from the transitions"""
         reward = 0
 
@@ -242,6 +252,10 @@ class FullCostEnv(gymnasium.Env):
         if self.setup_transition[action]:
             # Small incentive to progress to goal
             reward += 2.0 * FIRST_TIME_ACTION_REWARD
+
+        worker_index = self.all_agents.index(selected_worker)
+        if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
+            reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
 
         if self.first_time_reward_for_transition[action]:
             # self.first_time_reward_for_transition[chosenAction] = False
@@ -274,6 +288,8 @@ class FullCostEnv(gymnasium.Env):
         # Get the transition of the selected action
         transition = self.json_obj["transitions"][self.transition_ids[action]]
 
+        selected_worker = None
+
         # Determine who to assign the work to
         for data in transition["metaData"]:
             # If there is an agentAgnostic metadata, anyone can perform the action
@@ -305,12 +321,26 @@ class FullCostEnv(gymnasium.Env):
                 # TODO: need a better selection method
                 selected_worker = random.choice(available_workers)
 
+                # Update worker's rest/extertion time
+                if action not in self.rest_action_indecies and selected_worker in self.all_agents:
+                    self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
+                self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+
                 # Update the busy workers list
                 self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
             # If the transition has the agent metadata, it is assigned to that specific agent
             # No need to check if they are in busy_workers, since the mask function should invalidate any actions related to busy workers
             elif data["type"] == "agent":
-                self.busy_workers.append((data["value"], self.current_time + transition["time"], a.copy()))
+                selected_worker = data["value"]
+                task_time = transition["time"]
+
+                # Shortcut the "rest" action time to better align with agents
+                if action in self.rest_action_indecies and len(self.busy_workers) > 0:
+                    next_agent_completion_time = min(list(map(lambda pair: pair[1], self.busy_workers))) - self.current_time
+                    if next_agent_completion_time > 0:
+                        task_time = min(next_agent_completion_time, task_time)
+
+                self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
 
         
         # Determine whether to move time forward or not
@@ -338,7 +368,7 @@ class FullCostEnv(gymnasium.Env):
         # At least one worker should now be free (for the next step call) since we moved time forward
 
         # Determine reward
-        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time)
+        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, selected_worker)
 
         return self.marking, tmp_rwd, IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking), False, {}
 
