@@ -40,7 +40,7 @@ def run(arguments):
         f = arguments.inputfile
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task, _targets] = LOAD_JOB_FILE(f)
 
     # Determine naming scheme for model output
     outputFilename = ""

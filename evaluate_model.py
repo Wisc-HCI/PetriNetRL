@@ -59,7 +59,7 @@ def run(arguments):
         primitiveOutputFilename = "primitive-" + arguments.output
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights, json_task] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task, targets_obj] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
     if (arguments.useExploreEnv):
@@ -150,7 +150,9 @@ def run(arguments):
                              "From Standing Location", 
                              "To Standing Location", 
                              "From Hand Location", 
-                             "To Hand Location", 
+                             "To Hand Location",
+                             "Target",
+                             "Weight",
                              "Hand Cost", 
                              "Arm Cost", 
                              "Shoulder Cost", 
@@ -184,6 +186,8 @@ def run(arguments):
             toHandLocation = ""
             fromStandLocation = ""
             toStandLocation = ""
+            targets = ""
+            weights = ""
             
             # Iterate over transition metadata to extract information for CSV output
             for m in transition["metaData"]:
@@ -222,6 +226,9 @@ def run(arguments):
                     fromStandLocation = json_obj["nameLookup"][m["value"][0]]
                 elif m["type"] == "toStandingPOI":
                     toStandLocation = json_obj["nameLookup"][m["value"][0]]
+                elif m["type"] == "target":
+                    targets += targets_obj[m["value"]]["name"] + ";"
+                    weights += str(targets_obj[m["value"]]["weight"]) + ";"
 
             # TODO: keep track of time, busy/working agents, who all is assigned to a task (multiple agent split)
             csv_writer.writerow([env.transition_names[action], 
@@ -233,7 +240,9 @@ def run(arguments):
                                  fromStandLocation, 
                                  toStandLocation, 
                                  fromHandLocation, 
-                                 toHandLocation, 
+                                 toHandLocation,
+                                 targets,
+                                 weights, 
                                  costs[0], 
                                  costs[1], 
                                  costs[2], 
@@ -267,7 +276,9 @@ def run(arguments):
                              "From Standing Location", 
                              "To Standing Location", 
                              "From Hand Location", 
-                             "To Hand Location", 
+                             "To Hand Location",
+                             "Target",
+                             "Weight", 
                              "Hand Cost", 
                              "Arm Cost", 
                              "Shoulder Cost", 
@@ -301,6 +312,8 @@ def run(arguments):
             toHandLocation = ""
             fromStandLocation = ""
             toStandLocation = ""
+            target = ""
+            weight = ""
 
             primitive_dictionary = {}
 
@@ -308,7 +321,7 @@ def run(arguments):
             for m in transition["metaData"]:
                 if m["type"] == "primitiveAssignment":
                     try:
-                        primitive_dictionary[m["value"][1]] = ["" for _ in range(25)]
+                        primitive_dictionary[m["value"][1]] = ["" for _ in range(27)]
                         primitive_dictionary[m["value"][1]][0] = uuid
                         primitive_dictionary[m["value"][1]][1] = env.transition_names[action]
                         primitive_dictionary[m["value"][1]][2] = json_obj["nameLookup"][m["value"][1]]
@@ -318,11 +331,11 @@ def run(arguments):
                         primitive_dictionary[m["value"][1]][6] = currentTime
                         primitive_dictionary[m["value"][1]][7] = currentTime+duration
                         # ....
-                        primitive_dictionary[m["value"][1]][12] = costs[0]
-                        primitive_dictionary[m["value"][1]][13] = costs[1]
-                        primitive_dictionary[m["value"][1]][14] = costs[2]
-                        primitive_dictionary[m["value"][1]][15] = costs[3]
-                        primitive_dictionary[m["value"][1]][16] = costs[4]
+                        primitive_dictionary[m["value"][1]][14] = costs[0]
+                        primitive_dictionary[m["value"][1]][15] = costs[1]
+                        primitive_dictionary[m["value"][1]][16] = costs[2]
+                        primitive_dictionary[m["value"][1]][17] = costs[3]
+                        primitive_dictionary[m["value"][1]][18] = costs[4]
                     except:
                         a = 1
 
@@ -330,21 +343,21 @@ def run(arguments):
             # Iterate over transition metadata to extract information for CSV output
             for m in transition["metaData"]:
                 if m["type"] == "mVC":
-                    primitive_dictionary[m["value"][0]][17] = str(m["value"][1])
-                elif m["type"] == "verticalHandTravelDistance":
-                    primitive_dictionary[m["value"][0]][18] = str(m["value"][1])
-                elif m["type"] == "horizontalHandTravelDistance":
                     primitive_dictionary[m["value"][0]][19] = str(m["value"][1])
-                elif m["type"] == "standTravelDistance":
+                elif m["type"] == "verticalHandTravelDistance":
                     primitive_dictionary[m["value"][0]][20] = str(m["value"][1])
-                elif m["type"] == "reachDistance":
+                elif m["type"] == "horizontalHandTravelDistance":
                     primitive_dictionary[m["value"][0]][21] = str(m["value"][1])
-                elif m["type"] == "handDistanceToFloor":
+                elif m["type"] == "standTravelDistance":
                     primitive_dictionary[m["value"][0]][22] = str(m["value"][1])
+                elif m["type"] == "reachDistance":
+                    primitive_dictionary[m["value"][0]][23] = str(m["value"][1])
+                elif m["type"] == "handDistanceToFloor":
+                    primitive_dictionary[m["value"][0]][24] = str(m["value"][1])
                 if m["type"] == "isOneHanded":
-                    primitive_dictionary[m["value"][0]][23] = "True" if m["value"][1] else "False"
+                    primitive_dictionary[m["value"][0]][25] = "True" if m["value"][1] else "False"
                 elif m["type"] == "isHandWork":
-                    primitive_dictionary[m["value"][0]][24] = "True" if m["value"][1] else "False"
+                    primitive_dictionary[m["value"][0]][26] = "True" if m["value"][1] else "False"
                 elif m["type"] == "standing":
                     fromStandLocation = json_obj["nameLookup"][m["value"][0]]
                     toStandLocation = fromStandLocation
@@ -359,6 +372,9 @@ def run(arguments):
                     fromStandLocation = json_obj["nameLookup"][m["value"][0]]
                 elif m["type"] == "toStandingPOI":
                     toStandLocation = json_obj["nameLookup"][m["value"][0]]
+                elif m["type"] == "target":
+                    target = targets_obj[m["value"]]["name"]
+                    weight = targets_obj[m["value"]]["weight"]
 
             if len(primitive_dictionary.keys()) == 0:
                 primitive_dictionary[""] = [uuid,
@@ -373,6 +389,8 @@ def run(arguments):
                                             toStandLocation,
                                             fromHandLocation,
                                             toHandLocation,
+                                            target,
+                                            weight,
                                             "",
                                             "",
                                             "",
@@ -393,6 +411,8 @@ def run(arguments):
                 primitive_dictionary[key][9] = toStandLocation
                 primitive_dictionary[key][10] = fromHandLocation
                 primitive_dictionary[key][11] = toHandLocation
+                primitive_dictionary[key][12] = target
+                primitive_dictionary[key][13] = weight
                 csv_writer.writerow(primitive_dictionary[key])
 
             currentTime += duration
