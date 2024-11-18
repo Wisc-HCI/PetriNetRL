@@ -15,4 +15,4 @@ def IS_INVALID_STATE(marking):
 def LOAD_JOB_FILE(filename):
     with open(filename, encoding='utf-8') as fh:
         json_obj = json.load(fh)
-        return [json_obj["costNet"], json_obj["weights"], json_obj["tasks"], json_obj["targets"]]
+        return [json_obj["costNet"], json_obj["weights"], json_obj["tasks"], json_obj["targets"], json_obj["primitives"]]
