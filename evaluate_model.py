@@ -11,6 +11,7 @@ from constants import *
 from utils import *
 import csv
 import argparse
+import sys
 
 # Inspect transition metadata to determine interaction phase type (setup or simulation)
 def is_sim_type(transition):
@@ -82,40 +83,59 @@ def run(arguments):
     # Reset environment and get initial observation
     obs, _info = env.reset()
 
-    done = False
-
     # Setup tracking
-    cummulative_reward = 0.0
-    iteration = 0
-    action_sequence = []
+    loop_count = 0
+    keep_looping = True
 
-    # Iterate until model finds the goal(s) or max timesteps are hit
-    while not done:
-        # Increase iteration count
-        iteration += 1
-        
-        # Determine best action from current state
-        action, _states = model.predict(obs, action_masks=mask_fn(env))
-        
-        # Step the model based on selected action
-        obs, rewards, done, shortcut, info = env.step(action)
+    best_action_sequence = []
+    best_reward = -sys.maxsize - 1
 
-        # Update rewards
-        cummulative_reward += rewards
-        
-        # Add selected action to sequence
-        action_sequence.append((env.transition_ids[action], action, rewards))
-        
-        # If goal(s) are met or max timesteps are reached, mark as done and print
-        if iteration >= MAX_TESTING_TIMESTEPS or done:
-            done = True
-            print("reward", rewards)
-            print("cumulative reward", cummulative_reward)
-            print("is goal met? + {0}".format(IS_GOAL(obs, env.goal_state)))
-            print("Ending due to iteration cap or done flag")
-            print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
+    while keep_looping:
+        cummulative_reward = 0.0
+        iteration = 0
+        action_sequence = []
+        done = False
+        # Iterate until model finds the goal(s) or max timesteps are hit
+        while not done:
+            # Increase iteration count
+            iteration += 1
+            
+            # Determine best action from current state
+            action, _states = model.predict(obs, action_masks=mask_fn(env))
+            
+            # Step the model based on selected action
+            obs, rewards, done, shortcut, info = env.step(action)
 
+            # Update rewards
+            cummulative_reward += rewards
+            
+            # Add selected action to sequence
+            action_sequence.append((env.transition_ids[action], action, rewards))
+            
+            # If goal(s) are met or max timesteps are reached, mark as done and print
+            if iteration >= MAX_TESTING_TIMESTEPS or done:
+                done = True
+                # print("reward", rewards)
+                # print("cumulative reward", cummulative_reward)
+                # print("is goal met? + {0}".format(IS_GOAL(obs, env.goal_state)))
+                # print("Ending due to iteration cap or done flag")
+                # print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
 
+        loop_count += 1
+        obs, _info = env.reset()
+
+        if len(action_sequence) < len(best_action_sequence) or len(best_action_sequence) == 0:
+            best_action_sequence = action_sequence.copy()
+            best_reward = cummulative_reward
+        elif len(action_sequence) == len(best_action_sequence) and cummulative_reward > best_reward:
+            best_action_sequence = action_sequence.copy()
+            best_reward = cummulative_reward
+        
+        if loop_count > arguments.maxretries or len(action_sequence) < arguments.targetsteps:
+            keep_looping = False
+
+    action_sequence = best_action_sequence.copy()
+    print(len(action_sequence), best_reward)
     currentTime = 0
 
     # Write output to CSV
@@ -384,6 +404,8 @@ if __name__ == "__main__":
     parser.add_argument("--inputfile", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
     parser.add_argument("--output", type=str, default=None, help="")
+    parser.add_argument("--targetsteps", type=int, default=1000, help="")
+    parser.add_argument("--maxretries", type=int, default=0, help="")
     parser.add_argument("--useExploreEnv", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
