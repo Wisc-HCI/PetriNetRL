@@ -370,7 +370,9 @@ class FullCostEnv(gymnasium.Env):
         # Determine reward
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, selected_worker)
 
-        return self.marking, tmp_rwd, IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking), False, {}
+        done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking)
+
+        return self.marking, tmp_rwd, done_flag, False, {}
 
     def reset(self, seed=0, options={}):
         """Reset the environment"""
@@ -379,6 +381,19 @@ class FullCostEnv(gymnasium.Env):
 
         # Reset the marking to the default state of the petri net
         self.marking = self.initial_marking.copy()
+
+        # Reset 1 time costs
+        self.used_one_time_cost = [False for _ in range(self.num_transitions)]
+
+        # Trackers for whether workers are busy/free
+        self.busy_workers = []
+
+        # Tracker for agent exertion rate
+        for i in range(len(self.agent_exertion)):
+            self.agent_exertion[i] = [0, 0]
+
+        # Time tracker
+        self.current_time = 0
 
         return self.marking, {}  # reward, done, info can't be included
 
