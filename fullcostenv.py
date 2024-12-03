@@ -40,6 +40,8 @@ class FullCostEnv(gymnasium.Env):
         # Time tracker
         self.current_time = 0
 
+        self.step_tracker = 0
+
         # Get the names of the places in the petri net
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
 
@@ -68,6 +70,7 @@ class FullCostEnv(gymnasium.Env):
         self.base_mask = [True for _ in range(self.num_transitions)]
 
         self.rest_action_indecies = []
+        self.toggled_base_mask = False
 
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
@@ -256,6 +259,8 @@ class FullCostEnv(gymnasium.Env):
         worker_index = self.all_agents.index(selected_worker)
         if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
             reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
+        elif action in self.rest_action_indecies:
+            reward += STEP_REWARD
 
         if self.first_time_reward_for_transition[action]:
             # self.first_time_reward_for_transition[chosenAction] = False
@@ -278,6 +283,8 @@ class FullCostEnv(gymnasium.Env):
     def step(self, action):
         # Build action array of 0s except for the selected action
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
+
+        self.step_tracker += 1
 
         # Store the previous marking before updating
         self.previous_state = self.marking.copy()
@@ -399,6 +406,11 @@ class FullCostEnv(gymnasium.Env):
 
     def valid_action_mask(self):
         """Determine all possible valid actions at the current state"""
+
+        if self.step_tracker >= (FULL_COST_TIMESTEPS*MAX_FULL_COST_ITERATIONS/2) and not self.toggled_base_mask:
+            self.toggled_base_mask = True
+            for i in self.rest_action_indecies:
+                self.base_mask[i] = True
 
         # Assume all actions are valid
         valid_actions = self.base_mask.copy()
