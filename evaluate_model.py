@@ -12,6 +12,7 @@ from utils import *
 import csv
 import argparse
 import sys
+import random
 
 # Inspect transition metadata to determine interaction phase type (setup or simulation)
 def is_sim_type(transition):
@@ -59,7 +60,7 @@ def run(arguments):
         primitiveOutputFilename = "primitive-" + arguments.output
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights, json_task, targets_obj, primitives_obj] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task, targets_obj, primitives_obj, json_agents] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
     if (arguments.useExploreEnv):
@@ -67,7 +68,7 @@ def run(arguments):
         env = ExplorationEnv(json_obj, json_task)
     else:
         print("Using Full Cost Env")
-        env = FullCostEnv(json_obj, weights, json_task)
+        env = FullCostEnv(json_obj, weights, json_task, json_agents)
 
     # Reset and mask environment
     env.reset(0, {})
@@ -110,7 +111,7 @@ def run(arguments):
             cummulative_reward += rewards
             
             # Add selected action to sequence
-            action_sequence.append((env.transition_ids[action], action, rewards))
+            action_sequence.append((env.transition_ids[action], action, rewards, info))
             
             # If goal(s) are met or max timesteps are reached, mark as done and print
             if iteration >= MAX_TESTING_TIMESTEPS or done:
@@ -169,10 +170,11 @@ def run(arguments):
                              "Is One Handed", 
                              "Is Hand Work"])
 
-        for (transition_id, action, reward) in action_sequence:
+        for (transition_id, action, reward, info) in action_sequence:
             transition = json_obj["transitions"][transition_id]
             costs = find_costs(transition)
             duration = transition["time"]
+            agents = info["busyAgents"]
             primtives = ""
             mvcs = ""
             isOneHanded = ""
@@ -244,9 +246,9 @@ def run(arguments):
             csv_writer.writerow([env.transition_names[action], 
                                  is_sim_type(transition),
                                  reward, 
-                                 "", 
+                                 agents, 
                                  currentTime, 
-                                 currentTime+duration, 
+                                 info["time"], 
                                  fromStandLocation, 
                                  toStandLocation, 
                                  fromHandLocation, 
@@ -269,7 +271,7 @@ def run(arguments):
                                  isOneHanded, 
                                  isHandWork
                                  ])
-            currentTime += duration
+            currentTime = info["time"]
 
     currentTime = 0
     uuid = 0
@@ -305,11 +307,12 @@ def run(arguments):
                              "Is One Handed", 
                              "Is Hand Work"])
 
-        for (transition_id, action, reward) in action_sequence:
+        for (transition_id, action, reward, info) in action_sequence:
             uuid += 1
             transition = json_obj["transitions"][transition_id]
             costs = find_costs(transition)
             duration = transition["time"]
+            agents = info["busyAgents"]
             primtives = ""
             mvcs = ""
             isOneHanded = ""
@@ -404,7 +407,7 @@ def run(arguments):
             if len(primitive_dictionary.keys()) == 0:
                 primitive_dictionary[""] = [uuid,
                                             env.transition_names[action],
-                                            "",
+                                            agents,
                                             is_sim_type(transition),
                                             reward,
                                             "",
@@ -442,7 +445,7 @@ def run(arguments):
                     primitive_dictionary[key][13] = weight
                 csv_writer.writerow(primitive_dictionary[key])
 
-            currentTime += duration
+            currentTime = info["time"]
 
 
 

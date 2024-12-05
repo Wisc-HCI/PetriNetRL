@@ -12,7 +12,7 @@ Distribution.set_default_validate_args(False)
 class FullCostEnv(gymnasium.Env):
     """Environment for learning the collaborative task"""
 
-    def __init__(self, json_obj, weights, tasks, agent_obj):
+    def __init__(self, json_obj, weights, tasks):
         super(FullCostEnv, self).__init__()
 
         self.json_obj = json_obj
@@ -30,7 +30,6 @@ class FullCostEnv(gymnasium.Env):
 
         # Tracker for what agents exist in the network
         self.all_agents = []
-        self.agent_obj = agent_obj
 
         # Tracker for agent exertion rate
         self.agent_exertion = []
@@ -40,8 +39,6 @@ class FullCostEnv(gymnasium.Env):
 
         # Time tracker
         self.current_time = 0
-
-        self.step_tracker = 0
 
         # Get the names of the places in the petri net
         self.place_names = [json_obj["places"][i]["name"] for i in json_obj["places"]]
@@ -71,7 +68,6 @@ class FullCostEnv(gymnasium.Env):
         self.base_mask = [True for _ in range(self.num_transitions)]
 
         self.rest_action_indecies = []
-        self.toggled_base_mask = False
 
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
@@ -154,10 +150,6 @@ class FullCostEnv(gymnasium.Env):
         # Determine the initial marking and goal state(s) of the petri net
         self.initial_marking = np.empty((self.num_places, 1))
         self.goal_state = np.empty((self.num_places, 1))
-
-        # Add additional length for exertion rates
-        self.observation = np.empty((self.num_places + len(self.all_agents), 1))
-
         for i, place in enumerate(json_obj["places"]):
             # Places of infinite token have max value
             if json_obj["places"][place]["tokens"] == "infinite":
@@ -232,7 +224,7 @@ class FullCostEnv(gymnasium.Env):
         
         # Setup observational space to be the number of tokens in each place (marking) - i.e. vector of places by 1
         self.observation_space = spaces.Box(low=-255, high=255,
-                                            shape=(self.num_places+len(self.agent_exertion), 1,), dtype=np.float32)
+                                            shape=(self.num_places, 1,), dtype=np.float32)
 
     # State reward function
     def reward_value(self, action, previous_state, new_state, goal_state, current_time, selected_worker):
@@ -261,11 +253,9 @@ class FullCostEnv(gymnasium.Env):
             # Small incentive to progress to goal
             reward += 2.0 * FIRST_TIME_ACTION_REWARD
 
-        worker_index = self.all_agents.index(selected_worker)
-        if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
-            reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
-        elif action in self.rest_action_indecies:
-            reward += STEP_REWARD
+        # worker_index = self.all_agents.index(selected_worker)
+        # if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
+        #     reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
 
         if self.first_time_reward_for_transition[action]:
             # self.first_time_reward_for_transition[chosenAction] = False
@@ -288,8 +278,6 @@ class FullCostEnv(gymnasium.Env):
     def step(self, action):
         # Build action array of 0s except for the selected action
         a = np.asarray([[0 if action != j else 1] for j in range(self.num_transitions)])
-
-        self.step_tracker += 1
 
         # Store the previous marking before updating
         self.previous_state = self.marking.copy()
@@ -333,7 +321,7 @@ class FullCostEnv(gymnasium.Env):
                 # TODO: need a better selection method
                 selected_worker = random.choice(available_workers)
 
-                # Update worker's rest/exertion time
+                # Update worker's rest/extertion time
                 if action not in self.rest_action_indecies and selected_worker in self.all_agents:
                     self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
                 self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
@@ -384,11 +372,7 @@ class FullCostEnv(gymnasium.Env):
 
         done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking)
 
-        self.observation[0:self.num_places] = self.marking
-        for idx, exertion in enumerate(self.agent_exertion):
-            self.observation[self.num_places+idx] = 0 if exertion[TASK_TIME] == 0 else exertion[EXERTION_TIME] / exertion[TASK_TIME]
-
-        return self.observation, tmp_rwd, done_flag, False, {"time": self.current_time, "busyAgents": self.agent_obj[selected_worker]["name"]}
+        return self.marking, tmp_rwd, done_flag, False, {}
 
     def reset(self, seed=0, options={}):
         """Reset the environment"""
@@ -398,34 +382,10 @@ class FullCostEnv(gymnasium.Env):
         # Reset the marking to the default state of the petri net
         self.marking = self.initial_marking.copy()
 
-
-        # Reset 1 time costs
-        self.used_one_time_cost = [False for _ in range(self.num_transitions)]
-
-        # Trackers for whether workers are busy/free
-        self.busy_workers = []
-
-        # Tracker for agent exertion rate
-        for i in range(len(self.agent_exertion)):
-            self.agent_exertion[i] = [0, 0]
-
-            
-        self.observation[0:self.num_places] = self.marking
-        for idx, _ in enumerate(self.agent_exertion):
-            self.observation[self.num_places+idx] = 0
-
-        # Time tracker
-        self.current_time = 0
-
-        return self.observation, {"time": self.current_time, "busyAgents": self.busy_workers}  # reward, done, info can't be included
+        return self.marking, {}  # reward, done, info can't be included
 
     def valid_action_mask(self):
         """Determine all possible valid actions at the current state"""
-
-        if self.step_tracker >= (FULL_COST_TIMESTEPS*MAX_FULL_COST_ITERATIONS/2) and not self.toggled_base_mask:
-            self.toggled_base_mask = True
-            for i in self.rest_action_indecies:
-                self.base_mask[i] = True
 
         # Assume all actions are valid
         valid_actions = self.base_mask.copy()

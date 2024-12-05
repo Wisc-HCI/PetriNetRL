@@ -84,7 +84,7 @@ def run(arguments):
         f = arguments.inputfile
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, _weights, _json_task, _targets, _primitives] = LOAD_JOB_FILE(f)
+    [json_obj, _weights, _json_task, _targets, _primitives, _agents] = LOAD_JOB_FILE(f)
 
     if not arguments.disableMVCVerify:
         verifyJobFile(json_obj)
