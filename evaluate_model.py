@@ -174,7 +174,7 @@ def run(arguments):
             transition = json_obj["transitions"][transition_id]
             costs = find_costs(transition)
             duration = transition["time"]
-            agents = info["busyAgents"]
+            agents = ";".join(info["busyAgents"])
             primtives = ""
             mvcs = ""
             isOneHanded = ""
@@ -312,7 +312,7 @@ def run(arguments):
             transition = json_obj["transitions"][transition_id]
             costs = find_costs(transition)
             duration = transition["time"]
-            agents = info["busyAgents"]
+            agents = ";".join(info["busyAgents"])
             primtives = ""
             mvcs = ""
             isOneHanded = ""

@@ -130,6 +130,12 @@ class FullCostEnv(gymnasium.Env):
             elif is_progressable_action:
                 self.first_time_reward_for_transition[i] = True
 
+        # Determine all discard places (should be 1 for each agent)
+        self.discard_places = []
+        for i in json_obj["places"]:
+            if "🗑️" in json_obj["places"][i]["name"]:
+                self.discard_places.append(self.place_names.index(json_obj["places"][i]["name"]))
+
         # Find min/max of the extrapolated and one time costs
         maxValue = -sys.maxsize - 1
         minValue = sys.maxsize
@@ -235,9 +241,22 @@ class FullCostEnv(gymnasium.Env):
                                             shape=(self.num_places+len(self.agent_exertion), 1,), dtype=np.float32)
 
     # State reward function
-    def reward_value(self, action, previous_state, new_state, goal_state, current_time, selected_worker):
+    def reward_value(self, action, previous_state, new_state, goal_state, current_time, selected_workers):
         """Reward function for the full-cost environment. All costs come from the transitions"""
         reward = 0
+
+        # Tracker for whether all agents in the petri net have been discarded
+        allAgentsDiscarded = True
+        
+        # Iterate over all places in the petrinet where agents are discarded (1 for each agent)
+        for i in self.discard_places:
+            # Check if the agent discard location is empty (if so, agent hasn't been discarded)
+            if allAgentsDiscarded and new_state[i][0] == 0:
+                allAgentsDiscarded = False
+        
+        # If all agents are discard, this is a deadlock so assign heavy negative reward
+        if allAgentsDiscarded:
+            reward += DEADLOCK_OCCURS_REWARD
 
         # If transition has a 1 time cost (such as purchasing) and it hasn't been used before, use it
         if not self.used_one_time_cost[action]:
@@ -261,11 +280,10 @@ class FullCostEnv(gymnasium.Env):
             # Small incentive to progress to goal
             reward += 2.0 * FIRST_TIME_ACTION_REWARD
 
-        worker_index = self.all_agents.index(selected_worker)
-        if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
-            reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
-        elif action in self.rest_action_indecies:
-            reward += STEP_REWARD
+        for s_worker in selected_workers:
+            worker_index = self.all_agents.index(s_worker)
+            if action in self.rest_action_indecies and self.agent_exertion[worker_index][TASK_TIME] > 0:
+                reward += math.exp(self.agent_exertion[worker_index][EXERTION_TIME] / self.agent_exertion[worker_index][TASK_TIME]) - 1.5
 
         if self.first_time_reward_for_transition[action]:
             # self.first_time_reward_for_transition[chosenAction] = False
@@ -301,6 +319,7 @@ class FullCostEnv(gymnasium.Env):
         transition = self.json_obj["transitions"][self.transition_ids[action]]
 
         selected_worker = None
+        all_selected_workers = []
 
         # Determine who to assign the work to
         for data in transition["metaData"]:
@@ -332,6 +351,7 @@ class FullCostEnv(gymnasium.Env):
                 # Randomly select agents from the available pool
                 # TODO: need a better selection method
                 selected_worker = random.choice(available_workers)
+                all_selected_workers.append(selected_worker)
 
                 # Update worker's rest/exertion time
                 if action not in self.rest_action_indecies and selected_worker in self.all_agents:
@@ -351,6 +371,13 @@ class FullCostEnv(gymnasium.Env):
                     next_agent_completion_time = min(list(map(lambda pair: pair[1], self.busy_workers))) - self.current_time
                     if next_agent_completion_time > 0:
                         task_time = min(next_agent_completion_time, task_time)
+
+                # Update worker's rest/exertion time
+                if action not in self.rest_action_indecies and selected_worker in self.all_agents:
+                    self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
+                self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+                
+                all_selected_workers.append(selected_worker)
 
                 self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
 
@@ -380,7 +407,7 @@ class FullCostEnv(gymnasium.Env):
         # At least one worker should now be free (for the next step call) since we moved time forward
 
         # Determine reward
-        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, selected_worker)
+        tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, all_selected_workers)
 
         done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking)
 
@@ -388,7 +415,7 @@ class FullCostEnv(gymnasium.Env):
         for idx, exertion in enumerate(self.agent_exertion):
             self.observation[self.num_places+idx] = 0 if exertion[TASK_TIME] == 0 else exertion[EXERTION_TIME] / exertion[TASK_TIME]
 
-        return self.observation, tmp_rwd, done_flag, False, {"time": self.current_time, "busyAgents": self.agent_obj[selected_worker]["name"]}
+        return self.observation, tmp_rwd, done_flag, False, {"time": self.current_time, "busyAgents": [self.agent_obj[s_worker]["name"] for s_worker in all_selected_workers]}
 
     def reset(self, seed=0, options={}):
         """Reset the environment"""
@@ -422,10 +449,10 @@ class FullCostEnv(gymnasium.Env):
     def valid_action_mask(self):
         """Determine all possible valid actions at the current state"""
 
-        if self.step_tracker >= (FULL_COST_TIMESTEPS*MAX_FULL_COST_ITERATIONS/2) and not self.toggled_base_mask:
-            self.toggled_base_mask = True
-            for i in self.rest_action_indecies:
-                self.base_mask[i] = True
+        # if self.step_tracker >= (FULL_COST_TIMESTEPS*MAX_FULL_COST_ITERATIONS/2) and not self.toggled_base_mask:
+        #     self.toggled_base_mask = True
+        #     for i in self.rest_action_indecies:
+        #         self.base_mask[i] = True
 
         # Assume all actions are valid
         valid_actions = self.base_mask.copy()
