@@ -320,6 +320,9 @@ class FullCostEnv(gymnasium.Env):
 
         selected_worker = None
         all_selected_workers = []
+        
+        task_start_time = self.current_time
+        task_end_time = self.current_time
 
         # Determine who to assign the work to
         for data in transition["metaData"]:
@@ -357,6 +360,7 @@ class FullCostEnv(gymnasium.Env):
                 if action not in self.rest_action_indecies and selected_worker in self.all_agents:
                     self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
                 self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+                task_end_time = self.current_time + transition["time"]
 
                 # Update the busy workers list
                 self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
@@ -375,13 +379,18 @@ class FullCostEnv(gymnasium.Env):
                 # Update worker's rest/exertion time
                 if action not in self.rest_action_indecies and selected_worker in self.all_agents:
                     self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
-                self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+
+                if action in self.rest_action_indecies:
+                    self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += task_time
+                else:
+                    self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+
+                task_end_time = self.current_time + task_time
                 
                 all_selected_workers.append(selected_worker)
 
                 self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
 
-        
         # Determine whether to move time forward or not
         # If all agents are allocated, we need to advance time
         if len(self.busy_workers) == len(self.all_agents):
@@ -415,7 +424,7 @@ class FullCostEnv(gymnasium.Env):
         for idx, exertion in enumerate(self.agent_exertion):
             self.observation[self.num_places+idx] = 0 if exertion[TASK_TIME] == 0 else exertion[EXERTION_TIME] / exertion[TASK_TIME]
 
-        return self.observation, tmp_rwd, done_flag, False, {"time": self.current_time, "busyAgents": [self.agent_obj[s_worker]["name"] for s_worker in all_selected_workers]}
+        return self.observation, tmp_rwd, done_flag, False, {"startTime": task_start_time, "endTime": task_end_time, "busyAgents": [self.agent_obj[s_worker]["name"] for s_worker in all_selected_workers]}
 
     def reset(self, seed=0, options={}):
         """Reset the environment"""

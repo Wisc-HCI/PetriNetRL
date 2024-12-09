@@ -247,8 +247,8 @@ def run(arguments):
                                  is_sim_type(transition),
                                  reward, 
                                  agents, 
-                                 currentTime, 
-                                 info["time"], 
+                                 info["startTime"], 
+                                 info["endTime"], 
                                  fromStandLocation, 
                                  toStandLocation, 
                                  fromHandLocation, 
@@ -271,7 +271,7 @@ def run(arguments):
                                  isOneHanded, 
                                  isHandWork
                                  ])
-            currentTime = info["time"]
+            currentTime = info["endTime"]
 
     currentTime = 0
     uuid = 0
@@ -346,8 +346,8 @@ def run(arguments):
                         primitive_dictionary[m["value"][1]][3] = is_sim_type(transition)
                         primitive_dictionary[m["value"][1]][4] = reward
                         # ... left blank for agent (for now)
-                        primitive_dictionary[m["value"][1]][6] = currentTime
-                        primitive_dictionary[m["value"][1]][7] = currentTime+duration
+                        primitive_dictionary[m["value"][1]][6] = info["startTime"]
+                        primitive_dictionary[m["value"][1]][7] = info["endTime"]
                         # ....
                         if (primitive in ["Force", "Use", "Inspect", "Selection", "Hold", "Position"]):
                             try:
@@ -411,8 +411,8 @@ def run(arguments):
                                             is_sim_type(transition),
                                             reward,
                                             "",
-                                            currentTime,
-                                            currentTime+duration,
+                                            info["startTime"], 
+                                            info["endTime"], 
                                             fromStandLocation,
                                             toStandLocation,
                                             fromHandLocation,
@@ -445,7 +445,7 @@ def run(arguments):
                     primitive_dictionary[key][13] = weight
                 csv_writer.writerow(primitive_dictionary[key])
 
-            currentTime = info["time"]
+            currentTime = info["endTime"]
 
 
 
