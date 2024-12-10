@@ -12,6 +12,15 @@ def IS_GOAL(marking, goal_state):
 def IS_INVALID_STATE(marking):
     return np.any(marking < 0.0)
 
+def ALL_AGENTS_DISCARDED(marking, discard_locations):
+    # Iterate over all places in the petrinet where agents are discarded (1 for each agent)
+    for i in discard_locations:
+        # Check if the agent discard location is empty (if so, agent hasn't been discarded)
+        if marking[i][0] == 0:
+            return False
+        
+    return True
+
 def LOAD_JOB_FILE(filename):
     with open(filename, encoding='utf-8') as fh:
         json_obj = json.load(fh)

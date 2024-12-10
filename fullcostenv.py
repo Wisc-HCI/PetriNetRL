@@ -30,6 +30,8 @@ class FullCostEnv(gymnasium.Env):
 
         # Tracker for what agents exist in the network
         self.all_agents = []
+        self.all_agents_reset = []
+        self.discarded_agents = []
         self.agent_obj = agent_obj
 
         # Tracker for agent exertion rate
@@ -73,6 +75,8 @@ class FullCostEnv(gymnasium.Env):
         self.rest_action_indecies = []
         self.toggled_base_mask = False
 
+        self.discard_actions = []
+
         # Iterate over each transition to determine cost for it to be used
         for i, transition in enumerate(json_obj["transitions"]):
             one_time_cost = 0
@@ -105,6 +109,7 @@ class FullCostEnv(gymnasium.Env):
                     # If agent data is found, ensure that the agent is in the all_agents tracker
                     if data["value"] not in self.all_agents:
                         self.all_agents.append(data["value"])
+                        self.all_agents_reset.append(data["value"])
                         self.agent_exertion.append([0, 0])
 
                     # Add the transition to the agent's possible action space
@@ -116,6 +121,8 @@ class FullCostEnv(gymnasium.Env):
                     # Add transition to rest list so we can mark it invalid in mask
                     # self.base_mask[i] = False
                     self.rest_action_indecies.append(i)
+                elif data["type"] == "agentDiscard":
+                    self.discard_actions.append(i)
                 elif data["type"] == "setup":
                     is_setup_step = True
                 elif data["type"] == "task":
@@ -244,18 +251,9 @@ class FullCostEnv(gymnasium.Env):
     def reward_value(self, action, previous_state, new_state, goal_state, current_time, selected_workers):
         """Reward function for the full-cost environment. All costs come from the transitions"""
         reward = 0
-
-        # Tracker for whether all agents in the petri net have been discarded
-        allAgentsDiscarded = True
-        
-        # Iterate over all places in the petrinet where agents are discarded (1 for each agent)
-        for i in self.discard_places:
-            # Check if the agent discard location is empty (if so, agent hasn't been discarded)
-            if allAgentsDiscarded and new_state[i][0] == 0:
-                allAgentsDiscarded = False
         
         # If all agents are discard, this is a deadlock so assign heavy negative reward
-        if allAgentsDiscarded:
+        if ALL_AGENTS_DISCARDED(new_state, self.discard_places):
             reward += DEADLOCK_OCCURS_REWARD
 
         # If transition has a 1 time cost (such as purchasing) and it hasn't been used before, use it
@@ -324,101 +322,120 @@ class FullCostEnv(gymnasium.Env):
         task_start_time = self.current_time
         task_end_time = self.current_time
 
+        
+        if action in self.discard_actions:
+            agent_id = None
+
+            for data in transition["metaData"]:
+                if data["type"] == "agentDiscard":
+                    agent_id = data["value"]
+
+            if agent_id is not None:
+                removal_index = self.all_agents.index(agent_id)
+                self.discarded_agents.append(agent_id)
+                del self.all_agents[removal_index]
+            else:
+                print("WE HAVE A PROBLEM!!!!!")
+
         # Determine who to assign the work to
-        for data in transition["metaData"]:
-            # If there is an agentAgnostic metadata, anyone can perform the action
-            if data["type"] == "agentAgnostic":
-                # TODO: agentAgnostic..... <------
-                # figure out who is free, select one, add them to busy worker
-                # really only matters if time is > 0
+        if action not in self.discard_actions and len(self.all_agents) > 0:
+            for data in transition["metaData"]:
+                # If there is an agentAgnostic metadata, anyone can perform the action
+                if data["type"] == "agentAgnostic":
+                    # TODO: agentAgnostic..... <------
+                    # figure out who is free, select one, add them to busy worker
+                    # really only matters if time is > 0
 
-                # Tracking list of available workers
-                available_workers = []
+                    # Tracking list of available workers
+                    available_workers = []
 
-                # Iterate over all agents
-                for agent in self.all_agents:
-                    available = True
+                    # Iterate over all agents
+                    for agent in self.all_agents:
+                        available = True
 
-                    # Check if the agent is already in the busy worker list
-                    # If so, they aren't available
-                    for (worker, _time, _action) in self.busy_workers:
-                        if not available:
-                            continue
-                        if worker == agent:
-                            available = False
+                        # Check if the agent is already in the busy worker list
+                        # If so, they aren't available
+                        for (worker, _time, _action) in self.busy_workers:
+                            if not available:
+                                continue
+                            if worker == agent:
+                                available = False
 
-                    # Add available agents to the list
-                    if available:
-                        available_workers.append(agent)
+                        # Add available agents to the list
+                        if available:
+                            available_workers.append(agent)
 
-                # Randomly select agents from the available pool
-                # TODO: need a better selection method
-                selected_worker = random.choice(available_workers)
-                all_selected_workers.append(selected_worker)
+                    # Randomly select agents from the available pool
+                    # TODO: need a better selection method
+                    selected_worker = random.choice(available_workers)
+                    all_selected_workers.append(selected_worker)
 
-                # Update worker's rest/exertion time
-                if action not in self.rest_action_indecies and selected_worker in self.all_agents:
-                    self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
-                self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
-                task_end_time = self.current_time + transition["time"]
-
-                # Update the busy workers list
-                self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
-            # If the transition has the agent metadata, it is assigned to that specific agent
-            # No need to check if they are in busy_workers, since the mask function should invalidate any actions related to busy workers
-            elif data["type"] == "agent":
-                selected_worker = data["value"]
-                task_time = transition["time"]
-
-                # Shortcut the "rest" action time to better align with agents
-                if action in self.rest_action_indecies and len(self.busy_workers) > 0:
-                    next_agent_completion_time = min(list(map(lambda pair: pair[1], self.busy_workers))) - self.current_time
-                    if next_agent_completion_time > 0:
-                        task_time = min(next_agent_completion_time, task_time)
-
-                # Update worker's rest/exertion time
-                if action not in self.rest_action_indecies and selected_worker in self.all_agents:
-                    self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
-
-                if action in self.rest_action_indecies:
-                    self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += task_time
-                else:
+                    # Update worker's rest/exertion time
+                    if action not in self.rest_action_indecies and selected_worker in self.all_agents:
+                        self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
                     self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+                    task_end_time = self.current_time + transition["time"]
 
-                task_end_time = self.current_time + task_time
-                
-                all_selected_workers.append(selected_worker)
+                    # Update the busy workers list
+                    self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
+                # If the transition has the agent metadata, it is assigned to that specific agent
+                # No need to check if they are in busy_workers, since the mask function should invalidate any actions related to busy workers
+                elif data["type"] == "agent":
+                    selected_worker = data["value"]
+                    task_time = transition["time"]
 
-                self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
+                    # Shortcut the "rest" action time to better align with agents
+                    if action in self.rest_action_indecies and len(self.busy_workers) > 0:
+                        next_agent_completion_time = min(list(map(lambda pair: pair[1], self.busy_workers))) - self.current_time
+                        if next_agent_completion_time > 0:
+                            task_time = min(next_agent_completion_time, task_time)
+
+                    # Update worker's rest/exertion time
+                    if action not in self.rest_action_indecies and selected_worker in self.all_agents:
+                        self.agent_exertion[self.all_agents.index(selected_worker)][EXERTION_TIME] += transition["time"]
+
+                    if action in self.rest_action_indecies:
+                        self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += task_time
+                    else:
+                        self.agent_exertion[self.all_agents.index(selected_worker)][TASK_TIME] += transition["time"]
+
+                    task_end_time = self.current_time + task_time
+                    
+                    all_selected_workers.append(selected_worker)
+
+                    self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
 
         # Determine whether to move time forward or not
         # If all agents are allocated, we need to advance time
-        if len(self.busy_workers) == len(self.all_agents):
-            # Find the smallest time interval to advance by
-            new_time = min(list(map(lambda pair: pair[1], self.busy_workers)))
+        if len(self.busy_workers) == len(self.all_agents) and len(self.all_agents) > 0:
+                # Find the smallest time interval to advance by
+                temp_list = list([pair[1] for pair in self.busy_workers])
+                if len(temp_list) == 0:
+                    temp_list.append(0)
+                new_time = min(temp_list)
 
-            # Update the busy workers list to account for this time change (freeing up at least 1 worker)
-            new_busy_workers = []
-            for (worker, time, action_vec) in self.busy_workers:
-                # If worker is freed up, we can update the marking to account for the completion of the task
-                if time <= new_time:
-                    self.marking = self.marking + np.dot(self.oC, action_vec)
-                # Otherwise, worker is still busy
-                else:
-                    new_busy_workers.append((worker, time, action_vec))
-        
-            # Set busy worker list
-            self.busy_workers = new_busy_workers
+                # Update the busy workers list to account for this time change (freeing up at least 1 worker)
+                new_busy_workers = []
+                for (worker, time, action_vec) in self.busy_workers:
+                    # If worker is freed up, we can update the marking to account for the completion of the task
+                    if time <= new_time:
+                        self.marking = self.marking + np.dot(self.oC, action_vec)
+                    # Otherwise, worker is still busy
+                    else:
+                        new_busy_workers.append((worker, time, action_vec))
 
-            # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
-            self.current_time = new_time
+                # Set busy worker list
+                self.busy_workers = new_busy_workers
+
+                # self.busy_workers = list(filter(lambda pair: pair[1] > new_time, self.busy_workers))
+                self.current_time = new_time
 
         # At least one worker should now be free (for the next step call) since we moved time forward
 
         # Determine reward
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, all_selected_workers)
 
-        done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking)
+        done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking) or ALL_AGENTS_DISCARDED(self.marking, self.discard_places)
 
         self.observation[0:self.num_places] = self.marking
         for idx, exertion in enumerate(self.agent_exertion):
@@ -440,6 +457,10 @@ class FullCostEnv(gymnasium.Env):
 
         # Trackers for whether workers are busy/free
         self.busy_workers = []
+
+        self.discarded_agents = []
+
+        self.all_agents = self.all_agents_reset.copy()
 
         # Tracker for agent exertion rate
         for i in range(len(self.agent_exertion)):
@@ -469,6 +490,10 @@ class FullCostEnv(gymnasium.Env):
         # If worker is busy, they can't perform any new actions, so mark any actions related to that worker as false
         for (worker_id, _time, _action) in self.busy_workers:
             for transition_index in self.agent_transitions[worker_id]:
+                valid_actions[transition_index] = False
+
+        for agent_id in self.discarded_agents:
+            for transition_index in self.agent_transitions[agent_id]:
                 valid_actions[transition_index] = False
 
         # Iterate over non-zero transitions
