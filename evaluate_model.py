@@ -47,8 +47,8 @@ def mask_fn(env: gym.Env) -> np.ndarray:
 def run(arguments):
     # Determine which input json file to use 
     f = FILENAME # default "cost_net.json"
-    if arguments.inputfile is not None:
-        f = arguments.inputfile
+    if arguments.input_file is not None:
+        f = arguments.input_file
     
     # Determine naming scheme for model output
     outputFilename = f.replace(".json", "") + "-output.csv"
@@ -63,7 +63,7 @@ def run(arguments):
     [json_obj, weights, json_task, targets_obj, primitives_obj, json_agents] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    if (arguments.useExploreEnv):
+    if (arguments.use_explore_env):
         print("Using Exploration Env")
         env = ExplorationEnv(json_obj, json_task)
     else:
@@ -132,7 +132,7 @@ def run(arguments):
             best_action_sequence = action_sequence.copy()
             best_reward = cummulative_reward
         
-        if loop_count > arguments.maxretries or len(action_sequence) < arguments.targetsteps:
+        if loop_count > arguments.max_retries or len(action_sequence) < arguments.target_steps:
             keep_looping = False
 
     action_sequence = best_action_sequence.copy()
@@ -451,12 +451,12 @@ def run(arguments):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--inputfile", type=str, default=None, help="")
+    parser.add_argument("--input-file", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
     parser.add_argument("--output", type=str, default=None, help="")
-    parser.add_argument("--targetsteps", type=int, default=1000, help="")
-    parser.add_argument("--maxretries", type=int, default=0, help="")
-    parser.add_argument("--useExploreEnv", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
+    parser.add_argument("--target-steps", type=int, default=1000, help="")
+    parser.add_argument("--max-retries", type=int, default=0, help="")
+    parser.add_argument("--use-explore-env", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
     run(args)
