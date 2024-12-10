@@ -103,6 +103,7 @@ def run(arguments):
             
             # Determine best action from current state
             action, _states = model.predict(obs, action_masks=mask_fn(env))
+            # action, _states = model.predict(obs, action_masks=mask_fn(env), deterministic=True)
             
             # Step the model based on selected action
             obs, rewards, done, shortcut, info = env.step(action)
