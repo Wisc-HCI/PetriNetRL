@@ -5,8 +5,6 @@ from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3 import PPO
 from fullcostenv import FullCostEnv
-from explorationenv import ExplorationEnv
-from deadlockenv import DeadlockEnv
 from constants import *
 from utils import *
 import csv
@@ -63,12 +61,7 @@ def run(arguments):
     [json_obj, weights, json_task, targets_obj, primitives_obj, json_agents] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    if (arguments.use_explore_env):
-        print("Using Exploration Env")
-        env = ExplorationEnv(json_obj, json_task)
-    else:
-        print("Using Full Cost Env")
-        env = FullCostEnv(json_obj, weights, json_task, json_agents)
+    env = FullCostEnv(json_obj, weights, json_task, json_agents)
 
     # Reset and mask environment
     env.reset(0, {})
@@ -457,7 +450,6 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None, help="")
     parser.add_argument("--target-steps", type=int, default=1000, help="")
     parser.add_argument("--max-retries", type=int, default=0, help="")
-    parser.add_argument("--use-explore-env", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
 
     run(args)
