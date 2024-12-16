@@ -46,13 +46,13 @@ def run(arguments):
         outputFilename += arguments.prepend + "-"
     outputFilename += f.replace(".json", "")
 
-    # Create the 3 training environments
+    # Create the training environments
     fullCostTrainingEnv = FullCostEnv(json_obj, weights, json_task, json_agents)
 
     # Reset and mask each environment
     fullCostTrainingEnv = ActionMasker(fullCostTrainingEnv, mask_fn)  # Wrap to enable masking
 
-    # Set model to first (deadlock) environment
+    # Set model to training environment
     if arguments.base_model is None:
         if arguments.use_tensorboard:
             model = MaskablePPO(MaskableActorCriticPolicy, fullCostTrainingEnv, verbose=1, tensorbord_log=logdir, device="auto")

@@ -253,7 +253,7 @@ class FullCostEnv(gymnasium.Env):
         reward = 0
         
         # If all agents are discard, this is a deadlock so assign heavy negative reward
-        if ALL_AGENTS_DISCARDED(new_state, self.discard_places):
+        if ALL_AGENTS_DISCARDED(new_state, self.discard_places) or len(self.all_agents) == 0:
             reward += DEADLOCK_OCCURS_REWARD
 
         # If transition has a 1 time cost (such as purchasing) and it hasn't been used before, use it
@@ -435,7 +435,7 @@ class FullCostEnv(gymnasium.Env):
         # Determine reward
         tmp_rwd = self.reward_value(action, self.previous_state, self.marking, self.goal_state, self.current_time, all_selected_workers)
 
-        done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking) or ALL_AGENTS_DISCARDED(self.marking, self.discard_places)
+        done_flag = IS_GOAL(self.marking, self.goal_state) or IS_INVALID_STATE(self.marking) or ALL_AGENTS_DISCARDED(self.marking, self.discard_places) or len(self.all_agents) == 0
 
         self.observation[0:self.num_places] = self.marking
         for idx, exertion in enumerate(self.agent_exertion):
