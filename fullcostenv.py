@@ -276,7 +276,7 @@ class FullCostEnv(gymnasium.Env):
         # If so, reward
         if self.setup_transition[action]:
             # Small incentive to progress to goal
-            reward += 2.0 * FIRST_TIME_ACTION_REWARD
+            reward += FIRST_TIME_ACTION_REWARD
 
         for s_worker in selected_workers:
             worker_index = self.all_agents.index(s_worker)
