@@ -30,8 +30,8 @@ You can run `python evaluate_model.py` to sample allocations and timelines from 
 - `--input-file <path_to_file: string>`: Default is __None__. This file provides the metadata for the job.
 - `--model <path_to_file: string>`: Default is __None__. The use of this parameters specifies a model to load and sample from.
 - `--output <filename: string>`: Default is __None__. If __None__, the output filename will be the same as the input-file name with `.json` replaced with `-output.csv`. 
-- `--target-steps <num: int>`: Default is __1000__. The threshold for early termination. This defines the desired number of steps to consider a successful output (in addition to the ending step of the job being completed).
-- `--max-retries <num: int>`: Default is __0__. Number of additional samples to take from the model.
+- `--n-steps <num: int>`: Default is __1000__. This represents the maximum number of steps to run the model for. If the model reaches the goal state, it will terminate before `n_steps` is reached.
+- `--n-samples <num: int>`: Default is __0__. This represents the number of sample traces to compare from the model.
 
 At minimum, an input file and model is required for the evaluation to work. This leaves the model in a stocastic mode, allowing you to sample multiple traces.
 

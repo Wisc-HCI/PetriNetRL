@@ -53,9 +53,19 @@ def run(arguments):
     if arguments.output is not None:
         outputFilename = arguments.output
 
-    primitiveOutputFilename = "primitive-" + f.replace(".json", "") + "-output.csv"
+    if "/" not in f:
+        primitiveOutputFilename = "primitive-" + f.replace(".json", "") + "-output.csv"
+    else:
+        folder_path = f.split("/")
+        folders = "/".join(folder_path[:len(folder_path)-1])
+        primitiveOutputFilename = folders + "/primitive-" + folder_path[len(folder_path)-1].replace(".json", "") + "-output.csv"
     if arguments.output is not None:
-        primitiveOutputFilename = "primitive-" + arguments.output
+        if "/" not in arguments.output:
+            primitiveOutputFilename = "primitive-" + arguments.output
+        else:
+            folder_path = arguments.output.split("/")
+            folders = "/".join(folder_path[:len(folder_path)-1])
+            primitiveOutputFilename = folders + "/primitive-" + folder_path[len(folder_path)-1].replace(".json", "") + "-output.csv"
 
     # Load petrinet data from json (transitions, places)
     [json_obj, weights, json_task, targets_obj, primitives_obj, json_agents] = LOAD_JOB_FILE(f)
@@ -108,25 +118,23 @@ def run(arguments):
             action_sequence.append((env.transition_ids[action], action, rewards, info))
             
             # If goal(s) are met or max timesteps are reached, mark as done and print
-            if iteration >= MAX_TESTING_TIMESTEPS or done:
+            if iteration >= arguments.n_steps or done:
                 done = True
-                # print("reward", rewards)
-                # print("cumulative reward", cummulative_reward)
-                # print("is goal met? + {0}".format(IS_GOAL(obs, env.goal_state)))
-                # print("Ending due to iteration cap or done flag")
-                # print("iteration", iteration, "Max", MAX_TESTING_TIMESTEPS)
 
         loop_count += 1
         obs, _info = env.reset()
-
-        if len(action_sequence) < len(best_action_sequence) or len(best_action_sequence) == 0:
-            best_action_sequence = action_sequence.copy()
-            best_reward = cummulative_reward
-        elif len(action_sequence) == len(best_action_sequence) and cummulative_reward > best_reward:
-            best_action_sequence = action_sequence.copy()
-            best_reward = cummulative_reward
         
-        if loop_count > arguments.max_retries or len(action_sequence) < arguments.target_steps:
+        if len(best_action_sequence) == 0 or cummulative_reward > best_reward:
+            best_action_sequence = action_sequence.copy()
+            best_reward = cummulative_reward
+        # if len(action_sequence) < len(best_action_sequence) or len(best_action_sequence) == 0:
+        #     best_action_sequence = action_sequence.copy()
+        #     best_reward = cummulative_reward
+        # elif len(action_sequence) == len(best_action_sequence) and cummulative_reward > best_reward:
+        #     best_action_sequence = action_sequence.copy()
+        #     best_reward = cummulative_reward
+        
+        if loop_count > arguments.n_samples:
             keep_looping = False
 
     action_sequence = best_action_sequence.copy()
@@ -452,8 +460,8 @@ if __name__ == "__main__":
     parser.add_argument("--input-file", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
     parser.add_argument("--output", type=str, default=None, help="")
-    parser.add_argument("--target-steps", type=int, default=1000, help="")
-    parser.add_argument("--max-retries", type=int, default=0, help="")
+    parser.add_argument("--n-steps", type=int, default=MAX_TESTING_TIMESTEPS, help="")
+    parser.add_argument("--n-samples", type=int, default=0, help="")
     args = parser.parse_args()
 
     run(args)
