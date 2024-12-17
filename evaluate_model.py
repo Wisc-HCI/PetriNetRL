@@ -349,7 +349,7 @@ def run(arguments):
                         primitive_dictionary[m["value"][1]][4] = reward
                         
                         # ... left blank for agent (for now)
-                        primitive_dictionary[m["value"][1]][5] = m["value"][0]
+                        primitive_dictionary[m["value"][1]][5] = json_agents[m["value"][0]]["name"]
 
                         primitive_dictionary[m["value"][1]][6] = info["startTime"]
                         primitive_dictionary[m["value"][1]][7] = info["endTime"]
@@ -441,7 +441,7 @@ def run(arguments):
                                             ]
 
             for key in primitive_dictionary:
-                primitive_dictionary[key][1] = fromStandLocation
+                primitive_dictionary[key][7] = fromStandLocation
                 primitive_dictionary[key][8] = fromStandLocation
                 primitive_dictionary[key][9] = toStandLocation
                 primitive_dictionary[key][10] = fromHandLocation
