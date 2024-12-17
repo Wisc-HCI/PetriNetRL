@@ -42,4 +42,4 @@ You can run `python create_allocation_visual.py` with the following parameters t
 
 Running this script will analyze the allocation of tasks from the job between the various agents, and output metrics such as task time. Additional analysis will require investigating the CSV outputs manually.
 
-If you want to combine this with the prior sampling, you can use the `eval.sh` script to run both commands. Eval works as follows: `eval.sh <input-file> <target-steps> <max-retries> <model>`, and will first run `evaluate_model` followed by `create_allocation_visual`.
+If you want to combine this with the prior sampling, you can use the `eval.sh` script to run both commands. Eval works as follows: `eval.sh <input-file> <n-steps> <n-samples> <model>`, and will first run `evaluate_model` followed by `create_allocation_visual`.
