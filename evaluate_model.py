@@ -441,7 +441,6 @@ def run(arguments):
                                             ]
 
             for key in primitive_dictionary:
-                primitive_dictionary[key][7] = fromStandLocation
                 primitive_dictionary[key][8] = fromStandLocation
                 primitive_dictionary[key][9] = toStandLocation
                 primitive_dictionary[key][10] = fromHandLocation
