@@ -11,6 +11,8 @@ import csv
 import argparse
 import sys
 import random
+import re
+import os
 
 # Inspect transition metadata to determine interaction phase type (setup or simulation)
 def is_sim_type(transition):
@@ -77,65 +79,68 @@ def run(arguments):
     env.reset(0, {})
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
 
-    # Load model for evaluation
-    model = None
-    if arguments.model is not None:
-        model = MaskablePPO.load(arguments.model, weights_only=True)
-    else:
-        model = MaskablePPO.load("models/PetriNet-PPO/Exploration-final.zip")
-
-    # Reset environment and get initial observation
-    obs, _info = env.reset()
-
+    
     # Setup tracking
-    loop_count = 0
-    keep_looping = True
-
     best_action_sequence = []
     best_reward = -sys.maxsize - 1
 
-    while keep_looping:
-        cummulative_reward = 0.0
-        iteration = 0
-        action_sequence = []
-        done = False
-        # Iterate until model finds the goal(s) or max timesteps are hit
-        while not done:
-            # Increase iteration count
-            iteration += 1
-            
-            # Determine best action from current state
-            action, _states = model.predict(obs, action_masks=mask_fn(env))
-            # action, _states = model.predict(obs, action_masks=mask_fn(env), deterministic=True)
-            
-            # Step the model based on selected action
-            obs, rewards, done, shortcut, info = env.step(action)
+    # Load model for evaluation
+    model = None
+    model_files = []
+    if arguments.model is not None:
+        model_files = [arguments.model]
+    elif arguments.model_str is not None and arguments.model_dir is not None:
+        input_split = arguments.input_file.split("/")
+        escaped_pattern = re.escape(arguments.model_str).replace("FF", input_split[len(input_split)-1].replace(".json", "")).replace("XX", r"\d+")
+        pattern = re.compile(f"^{escaped_pattern}$")
+        model_files = [f for f in os.listdir(arguments.model_dir) if pattern.match(f)]
+    else:
+        print("ERROR: Unable to load model file(s).")
+        exit(1)
 
-            # Update rewards
-            cummulative_reward += rewards
-            
-            # Add selected action to sequence
-            action_sequence.append((env.transition_ids[action], action, rewards, info))
-            
-            # If goal(s) are met or max timesteps are reached, mark as done and print
-            if iteration >= arguments.n_steps or done:
-                done = True
-
-        loop_count += 1
+    for model_file in model_files:
+        model = MaskablePPO.load(model_file, weights_only=True)
+        # Reset environment and get initial observation
         obs, _info = env.reset()
-        
-        if len(best_action_sequence) == 0 or cummulative_reward > best_reward:
-            best_action_sequence = action_sequence.copy()
-            best_reward = cummulative_reward
-        # if len(action_sequence) < len(best_action_sequence) or len(best_action_sequence) == 0:
-        #     best_action_sequence = action_sequence.copy()
-        #     best_reward = cummulative_reward
-        # elif len(action_sequence) == len(best_action_sequence) and cummulative_reward > best_reward:
-        #     best_action_sequence = action_sequence.copy()
-        #     best_reward = cummulative_reward
-        
-        if loop_count > arguments.n_samples:
-            keep_looping = False
+
+        loop_count = 0
+        keep_looping = True
+
+        while keep_looping:
+            cummulative_reward = 0.0
+            iteration = 0
+            action_sequence = []
+            done = False
+            # Iterate until model finds the goal(s) or max timesteps are hit
+            while not done:
+                # Increase iteration count
+                iteration += 1
+                
+                # Determine best action from current state
+                action, _states = model.predict(obs, action_masks=mask_fn(env))
+                
+                # Step the model based on selected action
+                obs, rewards, done, shortcut, info = env.step(action)
+
+                # Update rewards
+                cummulative_reward += rewards
+                
+                # Add selected action to sequence
+                action_sequence.append((env.transition_ids[action], action, rewards, info))
+                
+                # If goal(s) are met or max timesteps are reached, mark as done and print
+                if iteration >= arguments.n_steps or done:
+                    done = True
+
+            loop_count += 1
+            obs, _info = env.reset()
+            
+            if len(best_action_sequence) == 0 or cummulative_reward > best_reward:
+                best_action_sequence = action_sequence.copy()
+                best_reward = cummulative_reward
+            
+            if loop_count > arguments.n_samples:
+                keep_looping = False
 
     action_sequence = best_action_sequence.copy()
     print(len(action_sequence), best_reward)
@@ -458,6 +463,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-file", type=str, default=None, help="")
     parser.add_argument("--model", type=str, default=None, help="")
+    parser.add_argument("--model-str", type=str, default=None, help="")
+    parser.add_argument("--model-dir", type=str, default=None, help="")
     parser.add_argument("--output", type=str, default=None, help="")
     parser.add_argument("--n-steps", type=int, default=MAX_TESTING_TIMESTEPS, help="")
     parser.add_argument("--n-samples", type=int, default=0, help="")
