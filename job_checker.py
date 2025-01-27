@@ -2,6 +2,8 @@ from constants import *
 from utils import *
 import argparse
 import sys
+import re
+import os
 
 def verifyJobFile(json_obj):
 
@@ -78,10 +80,24 @@ def getAllOneTimeCosts(json_obj):
             if data["frequency"] == "once":
                 print(place, data["value"])
 
+def verify_weights(files):
+    for f in files:
+        [json_obj, weights, json_task, targets, primitives, agents] = LOAD_JOB_FILE(f)
+        print(f, weights)
+
 def run(arguments):
     f = FILENAME # default "cost_net.json"
     if arguments.inputfile is not None:
         f = arguments.inputfile
+    elif arguments.batch_str is not None and arguments.batch_dir is not None:
+        escaped_pattern = re.escape(arguments.batch_str).replace("XX", r"\d+")
+        pattern = re.compile(f"^{escaped_pattern}$")
+        files = ["/".join([arguments.batch_dir, f]) for f in os.listdir(arguments.batch_dir) if pattern.match(f)]
+        verify_weights(files)
+        exit(0)
+    else:
+        print("No input file specified. Exiting...")
+        exit(1)
 
     # Load petrinet data from json (transitions, places)
     [json_obj, _weights, _json_task, _targets, _primitives, _agents] = LOAD_JOB_FILE(f)
@@ -97,6 +113,8 @@ def run(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputfile", type=str, default=None, help="")
+    parser.add_argument("--batch-str", type=str, default=None, help="")
+    parser.add_argument("--batch-dir", type=str, default=None, help="")
     parser.add_argument("--disableMVCVerify", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument("--printOneTimeCosts", type=bool, default=False, action=argparse.BooleanOptionalAction, help="")
     args = parser.parse_args()
