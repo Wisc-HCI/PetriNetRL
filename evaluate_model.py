@@ -93,7 +93,7 @@ def run(arguments):
         input_split = arguments.input_file.split("/")
         escaped_pattern = re.escape(arguments.model_str).replace("FF", input_split[len(input_split)-1].replace(".json", "")).replace("XX", r"\d+")
         pattern = re.compile(f"^{escaped_pattern}$")
-        model_files = [f for f in os.listdir(arguments.model_dir) if pattern.match(f)]
+        model_files = ["/".join([arguments.model_dir, f]) for f in os.listdir(arguments.model_dir) if pattern.match(f)]
     else:
         print("ERROR: Unable to load model file(s).")
         exit(1)
