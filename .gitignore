@@ -19,6 +19,7 @@ __pycache__/
 
 models/
 logs/
+visualization/outputs/
 
 # Distribution / packaging
 .Python
