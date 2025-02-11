@@ -38,7 +38,7 @@ def run(arguments):
         f = arguments.input_file
 
     # Load petrinet data from json (transitions, places)
-    [json_obj, weights, json_task, _targets, _primitives, json_agents] = LOAD_JOB_FILE(f)
+    [json_obj, weights, json_task, json_targets, _primitives, json_agents] = LOAD_JOB_FILE(f)
 
     # Determine naming scheme for model output
     outputFilename = ""
@@ -47,7 +47,7 @@ def run(arguments):
     outputFilename += f.replace(".json", "")
 
     # Create the training environments
-    fullCostTrainingEnv = FullCostEnv(json_obj, weights, json_task, json_agents)
+    fullCostTrainingEnv = FullCostEnv(json_obj, weights, json_task, json_targets, json_agents)
 
     # Reset and mask each environment
     fullCostTrainingEnv = ActionMasker(fullCostTrainingEnv, mask_fn)  # Wrap to enable masking

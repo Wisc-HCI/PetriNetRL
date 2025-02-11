@@ -12,11 +12,12 @@ Distribution.set_default_validate_args(False)
 class FullCostEnv(gymnasium.Env):
     """Environment for learning the collaborative task"""
 
-    def __init__(self, json_obj, weights, tasks, agent_obj):
+    def __init__(self, json_obj, weights, tasks, targets, agent_obj):
         super(FullCostEnv, self).__init__()
 
         self.json_obj = json_obj
         self.tasks = tasks
+        self.targets = targets
 
         # Store cost weighting
         self.weights = [weights[ERGO_KEY], weights[MONETARY_KEY]]
@@ -69,6 +70,10 @@ class FullCostEnv(gymnasium.Env):
         self.first_time_reward_for_transition = [False for _ in range(self.num_transitions)]
         self.task_transitions = [-1 for _ in range(self.num_transitions)]
         self.setup_transition = [False for _ in range(self.num_transitions)]
+
+        # Tracking # of agent transitions + allocations
+        self.min_setup_transitions = []
+        self.min_number_of_setup_actions = 0
 
         self.base_mask = [True for _ in range(self.num_transitions)]
 
@@ -134,8 +139,20 @@ class FullCostEnv(gymnasium.Env):
             # Mark whether the transition is a setup step or if it is a task-based transition
             if is_setup_step:
                 self.setup_transition[i] = True
+                self.min_setup_transitions.append(i)
             elif is_progressable_action:
                 self.first_time_reward_for_transition[i] = True
+
+        num_precusors = 0
+        num_reusable = 0
+        for target in self.targets:
+            if self.targets[target]["type"] == "reusable":
+                num_reusable += 1
+            elif self.targets[target]["type"] == "precursor":
+                num_precusors += 1
+
+        # Update variable tracking the min number of steps needed to complete the setup phase
+        self.min_number_of_setup_actions = len(self.all_agents) + len(tasks) + num_precusors + num_reusable
 
         # Determine all discard places (should be 1 for each agent)
         self.discard_places = []
@@ -461,6 +478,8 @@ class FullCostEnv(gymnasium.Env):
 
         self.done = False
 
+        self.step_tracker = 0
+
         # Reset the marking to the default state of the petri net
         self.marking = self.initial_marking.copy()
 
@@ -496,18 +515,26 @@ class FullCostEnv(gymnasium.Env):
         #     self.toggled_base_mask = True
         #     for i in self.rest_action_indecies:
         #         self.base_mask[i] = True
+        
+        if self.step_tracker <= self.min_number_of_setup_actions:
+            # Assume all actions are invalid
+            valid_actions = [False for _ in range(self.num_transitions)]
 
-        # Assume all actions are valid
-        valid_actions = self.base_mask.copy()
+            # Only allow setup actions initially
+            for id in self.min_setup_transitions:
+                valid_actions[id] = True
+        else:
+            # Assume all actions are valid
+            valid_actions = self.base_mask.copy()
 
-        # If worker is busy, they can't perform any new actions, so mark any actions related to that worker as false
-        for (worker_id, _time, _action) in self.busy_workers:
-            for transition_index in self.agent_transitions[worker_id]:
-                valid_actions[transition_index] = False
+            # If worker is busy, they can't perform any new actions, so mark any actions related to that worker as false
+            for (worker_id, _time, _action) in self.busy_workers:
+                for transition_index in self.agent_transitions[worker_id]:
+                    valid_actions[transition_index] = False
 
-        for agent_id in self.discarded_agents:
-            for transition_index in self.agent_transitions[agent_id]:
-                valid_actions[transition_index] = False
+            for agent_id in self.discarded_agents:
+                for transition_index in self.agent_transitions[agent_id]:
+                    valid_actions[transition_index] = False
 
         # Iterate over non-zero transitions
         for (j, i) in self.non_zeros:

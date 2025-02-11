@@ -73,7 +73,7 @@ def run(arguments):
     [json_obj, weights, json_task, targets_obj, primitives_obj, json_agents] = LOAD_JOB_FILE(f)
 
     # Setup evaluation environment
-    env = FullCostEnv(json_obj, weights, json_task, json_agents)
+    env = FullCostEnv(json_obj, weights, json_task, targets_obj, json_agents)
 
     # Reset and mask environment
     env.reset(0, {})
