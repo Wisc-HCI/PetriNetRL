@@ -339,6 +339,7 @@ class FullCostEnv(gymnasium.Env):
 
         # Determine who to assign the work to
         if action not in self.discard_actions and len(self.all_agents) > 0:
+            addedAgent = False
             for data in transition["metaData"]:
                 # If there is an agentAgnostic metadata, anyone can perform the action
                 if data["type"] == "agentAgnostic":
@@ -377,7 +378,12 @@ class FullCostEnv(gymnasium.Env):
                     task_end_time = self.current_time + transition["time"]
 
                     # Update the busy workers list
-                    self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
+                    if not addedAgent:
+                        addedAgent = False
+                        # Only add 1 copy of the action per agent collaboration
+                        self.busy_workers.append((selected_worker, self.current_time + transition["time"], a.copy()))
+                    else:
+                        self.busy_workers.append((selected_worker, self.current_time + transition["time"], None))
                 # If the transition has the agent metadata, it is assigned to that specific agent
                 # No need to check if they are in busy_workers, since the mask function should invalidate any actions related to busy workers
                 elif data["type"] == "agent":
@@ -403,11 +409,16 @@ class FullCostEnv(gymnasium.Env):
                     
                     all_selected_workers.append(selected_worker)
 
-                    self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
+                    if not addedAgent:
+                        addedAgent = True
+                        # Only add 1 copy of the action per agent collaboration
+                        self.busy_workers.append((data["value"], self.current_time + task_time, a.copy()))
+                    else:
+                        self.busy_workers.append((data["value"], self.current_time + task_time, None))
 
         # Determine whether to move time forward or not
         # If all agents are allocated, we need to advance time
-        if len(self.busy_workers) == len(self.all_agents) and len(self.all_agents) > 0:
+        while len(self.busy_workers) >= len(self.all_agents) and len(self.all_agents) > 0:
                 # Find the smallest time interval to advance by
                 temp_list = list([pair[1] for pair in self.busy_workers])
                 if len(temp_list) == 0:
@@ -419,7 +430,9 @@ class FullCostEnv(gymnasium.Env):
                 for (worker, time, action_vec) in self.busy_workers:
                     # If worker is freed up, we can update the marking to account for the completion of the task
                     if time <= new_time:
-                        self.marking = self.marking + np.dot(self.oC, action_vec)
+                        # if none, ignore we've already factored it in with the other collaborating agent
+                        if action_vec is not None:
+                            self.marking = self.marking + np.dot(self.oC, action_vec)
                     # Otherwise, worker is still busy
                     else:
                         new_busy_workers.append((worker, time, action_vec))
