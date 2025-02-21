@@ -99,6 +99,7 @@ def run(arguments):
         exit(1)
 
     for model_file in model_files:
+        print("Currently on: " + model_file)
         model = MaskablePPO.load(model_file, weights_only=True)
         # Reset environment and get initial observation
         obs, _info = env.reset()

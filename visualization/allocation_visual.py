@@ -1,4 +1,5 @@
 import sys
+import math
 import os
 import xml.etree.ElementTree as ET
 import re
@@ -29,31 +30,77 @@ def embed_svg(file_path):
 def parse_dimension(value):
     return int(re.sub(r'[^0-9.]', '', value)) if value else 1
 
-# Function to add an embedded SVG to the main SVG
-def add_image(svg, embedded_svg, x, y, width, height, percentage=-1):
-    if percentage == -1:
-        original_width = parse_dimension(embedded_svg.attrib.get("width", "1"))
-        original_height = parse_dimension(embedded_svg.attrib.get("height", "1"))
+def create_half_circle(svg, x, y, radius, fill_left="gray", fill_right="black"):
+    # Left semi-circle (counterclockwise)
+    left_half = SubElement(svg, 'path', {
+        'd': f"M {x} {y - radius} A {radius} {radius} 0 0 0 {x} {y + radius} Z",
+        'fill': fill_left
+    })
 
-        group = SubElement(svg, 'g', transform=f'translate({x},{y}) scale({width / original_width},{height / original_height})')
-    else:
-        group = SubElement(svg, 'g', transform=f'translate({x},{y}) scale({percentage / 100},{percentage / 100})')
-    for element in embedded_svg:
-        group.append(element)
-    return group
+    # Right semi-circle (clockwise)
+    right_half = SubElement(svg, 'path', {
+        'd': f"M {x} {y - radius} A {radius} {radius} 0 0 1 {x} {y + radius} Z",
+        'fill': fill_right
+    })
 
-# Function to add multiple bubbles with text horizontally
-def add_bubbles(svg, x_start, y, radius, texts_colors, spacing=5, is_human=False):
-    total_width = len(texts_colors) * (2 * radius + spacing) - spacing
-    x_start_adjusted = x_start - total_width / 2
-    fill_color = "blue" if is_human else "red"
 
-    for idx, text_content in enumerate(texts_colors):
-        x = x_start_adjusted + idx * (2 * radius + spacing / 2) + radius
+def add_agent_bubble(svg, x, y, radius, agent_text, fill_color="lightgray", is_split=False):
+    if not is_split:
         bubble = SubElement(svg, 'circle', cx=str(x), cy=str(y), r=str(radius), fill=fill_color)
         text = SubElement(svg, 'text', x=str(x), y=str(y + radius / 8), fill='white', 
-                          style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(radius))
-        text.text = text_content
+                            style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(radius))
+        text.text = agent_text
+    else:
+        create_half_circle(svg, x, y, radius, fill_left=fill_color[0], fill_right=fill_color[1])
+        left_text = SubElement(svg, 'text', x=str(x-radius/2.5), y=str(y + radius / 8), fill='white', 
+                            style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(radius))
+        left_text.text = agent_text[0]
+        right_text = SubElement(svg, 'text', x=str(x+radius/2.5), y=str(y + radius / 8), fill='white', 
+                            style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(radius))
+        right_text.text = agent_text[1]
+
+
+def add_primitive_bubble(svg, x, y, agent_bubble_radius, prim_bubble_radius, assignemnts, is_split=False, fill_color="red", non_human_agent=None):
+    if not is_split:
+        for idx, a in enumerate(assignemnts):
+            theta = math.pi/5 * (idx+3)
+            x_i = x + agent_bubble_radius*math.cos(theta)
+            y_i = y + agent_bubble_radius*math.sin(theta)
+            bubble = SubElement(svg, 'circle', cx=str(x_i), cy=str(y_i), r=str(prim_bubble_radius), fill=fill_color)
+            text = SubElement(svg, 'text', x=str(x_i), y=str(y_i + prim_bubble_radius / 8), fill='white', 
+                                style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(prim_bubble_radius))
+            text.text = a
+    else:
+        for idx, a in enumerate(assignemnts["Human"]):
+            theta = math.pi/5 * (idx+3)
+            x_i = x + agent_bubble_radius*math.cos(theta)
+            y_i = y + agent_bubble_radius*math.sin(theta)
+            bubble = SubElement(svg, 'circle', cx=str(x_i), cy=str(y_i), r=str(prim_bubble_radius), fill=fill_color[0])
+            text = SubElement(svg, 'text', x=str(x_i), y=str(y_i + prim_bubble_radius / 8), fill='white', 
+                                style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(prim_bubble_radius))
+            text.text = a
+        for idx, a in enumerate(assignemnts[non_human_agent]):
+            theta = math.pi + math.pi/5 * (-idx-3)
+            x_i = x + agent_bubble_radius*math.cos(theta)
+            y_i = y + agent_bubble_radius*math.sin(theta)
+            bubble = SubElement(svg, 'circle', cx=str(x_i), cy=str(y_i), r=str(prim_bubble_radius), fill=fill_color[1])
+            text = SubElement(svg, 'text', x=str(x_i), y=str(y_i + prim_bubble_radius / 8), fill='white', 
+                                style='font-size: {}px; text-anchor: middle; dominant-baseline: middle;'.format(prim_bubble_radius))
+            text.text = a
+
+def add_outline(svg, x, y, length, height, radius=5, color="#FF0000"):
+    path = SubElement(svg, 'path', d='M {} {} H {} A {} {} 0 0 1 {} {} V {} A {} {} 0 0 1 {} {} H {} A {} {} 0 0 1 {} {} V {} A {} {} 0 0 1 {} {} Z'.format(
+        x+radius, y,
+        x+length-radius,
+        radius, radius, x+length, y+radius,
+        y+height-radius,
+        radius, radius, x+length-radius, y+height,
+        x+radius,
+        radius, radius, x, y+height-radius,
+        y+radius,
+        radius, radius, x+radius, y
+        ),
+        stroke=color, style='stroke: {}; fill: transparent'.format(color))
 
 # Function to add text label above each allocation with wrapping
 def add_allocation_label(svg, x, y, text_content, max_width):
@@ -130,55 +177,61 @@ def run(arguments):
     print(primitive_assignment)
 
     # Constants for layout
-    worker_robot_height = 100
-    column_width = 2 * worker_robot_height
+    initial_x_offset = 30
+    padding = 20
+    agent_bubble_radius = 20
+    prim_bubble_radius = 5
+    bubble_spacing = 5
+    worker_robot_height = 20 + agent_bubble_radius
+    worker_robot_width = agent_bubble_radius
+    column_width = 2 * worker_robot_width
     icon_size = worker_robot_height 
-    padding = 5
-    bubble_radius = 10
-    bubble_spacing = 1
 
-    num_columns = sum(1 for _ in task_assignment)
+    num_columns = len([x for x in task_names if x is not None])
 
-    max_bubbles = max([5 if row and "Human" not in row else 2 for row in task_assignment if row])
-    svg_width = num_columns * (column_width + padding)
-    svg_height = worker_robot_height + 3 * (icon_size + padding) + 2 * (bubble_radius + bubble_spacing) + max_bubbles * (2 * bubble_radius + bubble_spacing) + 40
+    max_bubbles = num_columns
+    svg_width = (num_columns+1) * (column_width + padding)
+    svg_height = worker_robot_height + 3 * (icon_size + padding) + 2 * (agent_bubble_radius + bubble_spacing) + max_bubbles * (2 * agent_bubble_radius + bubble_spacing) + 40
+
+    human_color = "gray"
+    robot_color = "black"
+    human_prim_color = "purple"
+    robot_prim_color = "pink"
 
     svg = create_svg(svg_width, svg_height)
 
-    # Embed worker and robot SVGs
-    worker_svg_data = embed_svg('assets/worker.svg')
-    robot_svg_data = embed_svg('assets/robot.svg')
+    offset_from_label = 10
+    outline_padding = 10
+    add_outline(svg, 
+                initial_x_offset - column_width/4, #x
+                worker_robot_height/2 + offset_from_label - outline_padding/2,  #y
+                len([x for x in task_names if x is not None])*(column_width + padding),  #length
+                worker_robot_height + outline_padding, #height
+                color="#000000")
 
     for i, row in enumerate(task_assignment):
-        x_offset = i * (column_width + padding)
+        x_offset = i * (column_width + padding)  + column_width / 2 + initial_x_offset
         task_name = task_names[i]
         
         # Add allocation label with wrapping
         if task_name is None:
             continue
 
-        add_allocation_label(svg, x_offset + column_width / 2, 15, task_name, column_width)
+        add_allocation_label(svg, x_offset, 15, str(i+1), column_width)
 
         if row is None:
             continue
 
         # Determine allocation
         if row == 'Human':
-            add_image(svg, worker_svg_data, x_offset + column_width // 3, 40, worker_robot_height, worker_robot_height)
-            add_bubbles(svg, x_offset + column_width / 2, worker_robot_height + 30 - bubble_radius, 
-                        bubble_radius, primitive_assignment[i]["Human"], is_human=True)
+            add_agent_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, "H", fill_color=human_color)
+            add_primitive_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, prim_bubble_radius, primitive_assignment[i]["Human"], is_split=False, fill_color=human_prim_color)
         elif "Human" not in row:
-            add_image(svg, robot_svg_data, x_offset + column_width // 4, 40, worker_robot_height, worker_robot_height)
-            add_bubbles(svg, x_offset + column_width / 2, worker_robot_height + 30 - bubble_radius, 
-                        bubble_radius, primitive_assignment[i][non_human_agent])
+            add_agent_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, "R", fill_color=robot_color)
+            add_primitive_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, prim_bubble_radius, primitive_assignment[i][non_human_agent], is_split=False, fill_color=robot_prim_color)
         else:
-            add_image(svg, worker_svg_data, x_offset, 40, column_width // 2, worker_robot_height)
-            add_bubbles(svg, x_offset + column_width // 4, worker_robot_height + 30 - bubble_radius, 
-                        bubble_radius, primitive_assignment[i]["Human"], is_human=True)
-
-            add_image(svg, robot_svg_data, x_offset + column_width // 2, 40, column_width // 2, worker_robot_height)
-            add_bubbles(svg, x_offset + 3 * column_width // 4, worker_robot_height + 30 - bubble_radius, 
-                        bubble_radius, primitive_assignment[i][non_human_agent])
+            add_agent_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, ["H", "R"], is_split=True, fill_color=[human_color, robot_color])
+            add_primitive_bubble(svg, x_offset, worker_robot_height + offset_from_label, agent_bubble_radius, prim_bubble_radius, primitive_assignment[i], is_split=True, non_human_agent=non_human_agent, fill_color=[human_prim_color, robot_prim_color])
 
     # Save SVG
     with open('outputs/work_allocation.svg', 'wb') as out_file:
