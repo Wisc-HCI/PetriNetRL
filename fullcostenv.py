@@ -435,7 +435,7 @@ class FullCostEnv(gymnasium.Env):
 
         # Determine whether to move time forward or not
         # If all agents are allocated, we need to advance time
-        while len(self.busy_workers) >= len(self.all_agents) and len(self.all_agents) > 0:
+        if (self.step_tracker <= self.min_number_of_setup_actions) or (len(self.busy_workers) >= len(self.all_agents) and len(self.all_agents) > 0):
                 # Find the smallest time interval to advance by
                 temp_list = list([pair[1] for pair in self.busy_workers])
                 if len(temp_list) == 0:

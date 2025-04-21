@@ -16,6 +16,8 @@ __pycache__/
 *.log
 *.sh
 *.xlsx
+*.pdf
+*.svg
 
 models/
 logs/
